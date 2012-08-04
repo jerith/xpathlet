@@ -42,6 +42,7 @@ def p_step_without_axis(p):
     """
     axis = 'child'  # The default axis
     node_test = ast.NodeType('node')  # The default NodeTest
+    predicates = []
 
     if p[1] == '.':
         axis = 'self'
@@ -49,8 +50,9 @@ def p_step_without_axis(p):
         axis = 'parent'
     else:
         node_test = p[1]
+        predicates = p[2]
 
-    p[0] = ast.Step(axis, node_test)
+    p[0] = ast.Step(axis, node_test, *predicates)
 
 
 def p_axis_specifier(p):
@@ -63,14 +65,14 @@ def p_axis_specifier(p):
 def p_node_test(p):
     """NodeTest : NameTest
                 | NODETYPE '(' ')'
-                | NODETYPE '(' LITERAL ')'
+                | NODETYPE '(' Literal ')'
     """
     if len(p) == 2:
         p[0] = p[1]
-    else:
-        # p==5 is a special case for 'processing-instruction'.
-        # FIXME: For now, we just discard the param.
+    elif len(p) == 4:
         p[0] = ast.NodeType(p[1])
+    else:
+        p[0] = ast.NodeType(p[1], p[3])
 
 
 def p_name_test(p):
@@ -85,8 +87,10 @@ def p_predicates(p):
     """Predicates : Predicates Predicate
                   | empty
     """
-    if len(p) > 1:
-        p[0] = p[1:]
+    if len(p) > 2:
+        p[0] = p[1] + [p[2]]
+    else:
+        p[0] = []
 
 
 def p_predicate(p):
@@ -104,7 +108,7 @@ def p_expr(p):
 def p_primary_expr(p):
     """PrimaryExpr : VariableReference
                    | '(' Expr ')'
-                   | LITERAL
+                   | Literal
                    | NUMBER
                    | FunctionCall
     """
@@ -240,9 +244,18 @@ def p_qname(p):
     p[0] = u''.join(p[1:])
 
 
+def p_literal(p):
+    """Literal : LITERAL
+    """
+    p[0] = ast.Literal(p[1])
+
+
 def p_empty(p):
     "empty :"
 
+
+# To keep pyflakes happy:
+tokens
 
 start = 'Expr'
 parser = yacc.yacc()

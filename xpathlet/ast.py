@@ -1,5 +1,14 @@
 class Node(object):
-    pass
+    def to_str(self):
+        raise NotImplementedError()
+
+
+def _to_str(thing):
+    if isinstance(thing, Node):
+        return thing.to_str()
+    if thing is None:
+        return u''
+    return u'%s' % (thing,)
 
 
 AXIS_NAMES = set([
@@ -18,6 +27,7 @@ AXIS_NAMES = set([
         'self',
         ])
 
+
 def normalise_axis(name):
     if name == '@':
         name = 'attribute'
@@ -35,6 +45,10 @@ class Step(Node):
         return u'<Step %s::%s %s>' % (
             self.axis, self.node_test, self.predicates)
 
+    def to_str(self):
+        return u'%s::%s%s' % (self.axis, self.node_test.to_str(),
+                              u''.join(p.to_str() for p in self.predicates))
+
 
 class NodeType(Node):
     def __init__(self, node_type, param=None):
@@ -46,6 +60,9 @@ class NodeType(Node):
     def __repr__(self):
         return u'<NodeType %s(%s)>' % (self.node_type, self.param or '')
 
+    def to_str(self):
+        return u'%s(%r)' % (self.node_type, _to_str(self.param))
+
 
 class NameTest(Node):
     def __init__(self, *bits):
@@ -54,6 +71,9 @@ class NameTest(Node):
     def __repr__(self):
         return u'<NameTest %s>' % self.name
 
+    def to_str(self):
+        return self.name
+
 
 class Predicate(Node):
     def __init__(self, expr):
@@ -61,6 +81,9 @@ class Predicate(Node):
 
     def __repr__(self):
         return u'<Predicate %s>' % self.expr
+
+    def to_str(self):
+        return u'[%s]' % (self.expr.to_str(),)
 
 
 class LocationPath(Node):
@@ -75,6 +98,9 @@ class LocationPath(Node):
     def __repr__(self):
         return u"<LocationPath: %s>" % (self.steps,)
 
+    def to_str(self):
+        return u''.join(_to_str(s) for s in self.steps)
+
 
 class PathExpr(Node):
     def __init__(self, *parts):
@@ -82,6 +108,9 @@ class PathExpr(Node):
 
     def __repr__(self):
         return u"<PathExpr: %s>" % (self.parts,)
+
+    def to_str(self):
+        return u''.join(_to_str(p) for p in self.parts)
 
 
 class FilterExpr(Node):
@@ -92,10 +121,14 @@ class FilterExpr(Node):
             self.expr = expr.expr
             self.predicates.extend(expr.predicates)
         if predicate is not None:
-            self.predicates.appen(predicate)
+            self.predicates.append(predicate)
 
     def __repr__(self):
         return u"<FilterExpr: %s %s>" % (self.expr, self.predicates)
+
+    def to_str(self):
+        return u'%s%s' % (self.expr.to_str(),
+                          u''.join(p.to_str() for p in self.predicates))
 
 
 class OperatorExpr(Node):
@@ -112,6 +145,9 @@ class OperatorExpr(Node):
     def __repr__(self):
         return u"<OperatorExpr %s: %s>" % (self.op, self.parts)
 
+    def to_str(self):
+        return (u' %s ' % (self.op,)).join(_to_str(p) for p in self.parts)
+
 
 class UnaryExpr(Node):
     def __init__(self, op, expr):
@@ -121,6 +157,9 @@ class UnaryExpr(Node):
     def __repr__(self):
         return u"<UnaryExpr %s: %s>" % (self.op, self.parts)
 
+    def to_str(self):
+        return u'%s%s' % (self.op, self.expr.to_str())
+
 
 class VariableReference(Node):
     def __init__(self, name):
@@ -128,6 +167,9 @@ class VariableReference(Node):
 
     def __repr__(self):
         return u"<VariableReference: %s>" % (self.name,)
+
+    def to_str(self):
+        return u'$%s' % (self.name,)
 
 
 class FunctionCall(Node):
@@ -137,3 +179,19 @@ class FunctionCall(Node):
 
     def __repr__(self):
         return u"<FunctionCall %s: %s>" % (self.name, self.args)
+
+    def to_str(self):
+        return u'%s(%s)' % (self.name,
+                            u', '.join(_to_str(a) for a in self.args))
+
+
+class Literal(Node):
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self):
+        return u"<Literal: %s>" % (self.value)
+
+    def to_str(self):
+        # TODO: What about non-ASCII, etc.?
+        return repr(self.value).lstrip('u')

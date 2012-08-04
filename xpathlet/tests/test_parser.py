@@ -8,5 +8,7 @@ class TestParser(TestCase):
         print "\n-----"
         print parser.parse(u'/foo')
         print "-----"
-        print parser.parse("instance('cities')/root/item[state=/new_cascading_select/state and county=/new_cascading_select/county]", debug=0)
+        r = parser.parse("instance('cities')/root/item[state=/new_cascading_select/state and county=/new_cascading_select/county]", debug=0)
+        print r
+        print r.to_str()
         print "-----"
