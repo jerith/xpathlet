@@ -12,3 +12,7 @@ class TestParser(TestCase):
         print r
         print r.to_str()
         print "-----"
+        r = parser.parse("//foo//bar")
+        print r
+        print r.to_str()
+        print "-----"

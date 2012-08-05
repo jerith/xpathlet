@@ -1,3 +1,6 @@
+# -*- test-case-name: xpathlet.tests.test_parser -*-
+
+
 class Node(object):
     def to_str(self):
         raise NotImplementedError()
@@ -61,7 +64,7 @@ class NodeType(Node):
         return u'<NodeType %s(%s)>' % (self.node_type, self.param or '')
 
     def to_str(self):
-        return u'%s(%r)' % (self.node_type, _to_str(self.param))
+        return u'%s(%s)' % (self.node_type, _to_str(self.param))
 
 
 class NameTest(Node):
@@ -87,24 +90,36 @@ class Predicate(Node):
 
 
 class LocationPath(Node):
+    absolute = False
+
     def __init__(self, *steps):
         self.steps = []
         for step in steps:
-            if isinstance(step, LocationPath):
+            if step == '/':
+                # Ignore these.
+                pass
+            elif isinstance(step, LocationPath):
                 self.steps.extend(step.steps)
             else:
                 self.steps.append(step)
 
     def __repr__(self):
-        return u"<LocationPath: %s>" % (self.steps,)
+        return u"<%s: %s>" % (type(self).__name__, self.steps)
 
     def to_str(self):
-        return u''.join(_to_str(s) for s in self.steps)
+        return u'/'.join(_to_str(s) for s in self.steps)
+
+
+class AbsoluteLocationPath(LocationPath):
+    absolute = True
+
+    def to_str(self):
+        return u'/' + super(AbsoluteLocationPath, self).to_str()
 
 
 class PathExpr(Node):
     def __init__(self, *parts):
-        self.parts = parts
+        self.parts = [p for p in parts if p != '/']
 
     def __repr__(self):
         return u"<PathExpr: %s>" % (self.parts,)

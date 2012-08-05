@@ -22,15 +22,15 @@ def p_location_path(p):
 def p_absolute_location_path(p):
     """AbsoluteLocationPath : '/'
                             | '/' RelativeLocationPath
-                            | DOUBLESLASH RelativeLocationPath
+                            | DoubleSlash RelativeLocationPath
     """
-    p[0] = ast.LocationPath(*p[1:])
+    p[0] = ast.AbsoluteLocationPath(*p[1:])
 
 
 def p_relative_location_path(p):
     """RelativeLocationPath : Step
                             | RelativeLocationPath '/' Step
-                            | RelativeLocationPath DOUBLESLASH Step
+                            | RelativeLocationPath DoubleSlash Step
     """
     p[0] = ast.LocationPath(*p[1:])
 
@@ -154,7 +154,7 @@ def p_path_expr(p):
     """PathExpr : LocationPath
                 | FilterExpr
                 | FilterExpr '/' RelativeLocationPath
-                | FilterExpr DOUBLESLASH RelativeLocationPath
+                | FilterExpr DoubleSlash RelativeLocationPath
     """
     if len(p) > 2:
         p[0] = ast.PathExpr(*p[1:])
@@ -218,6 +218,12 @@ def p_variable_reference(p):
     """VariableReference : '$' QName
     """
     p[0] = ast.VariableReference(p[2])
+
+
+def p_double_slash(p):
+    """DoubleSlash : DOUBLESLASH
+    """
+    p[0] = ast.Step('descendant-or-self', ast.NodeType('node'))
 
 
 # There's a bit of madness below to allow us to handle node types and function
