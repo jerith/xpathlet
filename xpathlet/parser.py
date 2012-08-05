@@ -58,7 +58,7 @@ def p_step_without_axis(p):
         node_test = p[1]
         predicates = p[2]
 
-    p[0] = ast.Step(axis, node_test, *predicates)
+    p[0] = ast.Step(axis, node_test, predicates)
 
 
 def p_axis_specifier(p):
@@ -223,7 +223,7 @@ def p_variable_reference(p):
 def p_double_slash(p):
     """DoubleSlash : DOUBLESLASH
     """
-    p[0] = ast.Step('descendant-or-self', ast.NodeType('node'))
+    p[0] = ast.Step('descendant-or-self', ast.NodeType('node'), [])
 
 
 # There's a bit of madness below to allow us to handle node types and function

@@ -39,7 +39,7 @@ def normalise_axis(name):
 
 
 class Step(Node):
-    def __init__(self, axis, node_test, *predicates):
+    def __init__(self, axis, node_test, predicates):
         self.axis = axis
         self.node_test = node_test
         self.predicates = predicates

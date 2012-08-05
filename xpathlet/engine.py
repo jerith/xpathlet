@@ -46,7 +46,9 @@ class XPathObject(object):
 
 
 class XPathNodeSet(XPathObject):
-    pass
+    def only(self):
+        [node] = self.value
+        return node
 
 
 class XPathBoolean(XPathObject):
@@ -326,11 +328,11 @@ class Context(object):
 
 class ExpressionEngine(object):
     def __init__(self, root_node, debug=False):
-        self._debug = debug
+        self.debug = debug
         self.root_node = root_node
 
     def dp(self, *args):
-        if self._debug:
+        if self.debug:
             print u' '.join(str(a) for a in args)
 
     def evaluate(self, xpath_expr, context_node=None):
@@ -391,6 +393,8 @@ class ExpressionEngine(object):
         if isinstance(test_expr, ast.NameTest):
             if node.node_type != axis.principal_node_type:
                 return False
+            if test_expr.name == '*':
+                return True
             return node.expanded_name() == context.expand_qname(test_expr.name)
 
         if isinstance(test_expr, ast.NodeType):
