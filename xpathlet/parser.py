@@ -6,6 +6,12 @@ from xpathlet.lexer import tokens
 from xpathlet import ast
 
 
+def p_expr(p):
+    """Expr : OrExpr
+    """
+    p[0] = p[1]
+
+
 def p_location_path(p):
     """LocationPath : RelativeLocationPath
                     | AbsoluteLocationPath
@@ -97,12 +103,6 @@ def p_predicate(p):
     """Predicate : '[' Expr ']'
     """
     p[0] = ast.Predicate(p[2])
-
-
-def p_expr(p):
-    """Expr : OrExpr
-    """
-    p[0] = p[1]
 
 
 def p_primary_expr(p):
@@ -257,5 +257,4 @@ def p_empty(p):
 # To keep pyflakes happy:
 tokens
 
-start = 'Expr'
 parser = yacc.yacc()
