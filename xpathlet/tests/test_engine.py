@@ -17,12 +17,19 @@ TEST_XML = '\n'.join([
 
 
 class TestEngine(TestCase):
-    def test_foo(self):
+    def eval_xpath(self, xpath_expr, debug=False):
         print "\n-----"
+        print "XPath:", xpath_expr
+
         xpath_root = build_xpath_tree(StringIO(TEST_XML))
-        engine = ExpressionEngine(xpath_root)
-        result = engine.evaluate(u'/carrot/jr:foo/bar/text()')
-        result = engine.evaluate(u'//bar/text()')
-        print "\n-----"
-        print "result:", result
+        engine = ExpressionEngine(xpath_root, debug=debug)
+        result = engine.evaluate(xpath_expr)
+
+        if debug:
+            print "\n-----"
+        print "Result:", result
         print "-----"
+
+    def test_foo(self):
+        self.eval_xpath(u'/carrot/jr:foo/bar/text()')
+        self.eval_xpath(u'//bar/text()')

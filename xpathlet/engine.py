@@ -325,8 +325,13 @@ class Context(object):
 
 
 class ExpressionEngine(object):
-    def __init__(self, root_node):
+    def __init__(self, root_node, debug=False):
+        self._debug = debug
         self.root_node = root_node
+
+    def dp(self, *args):
+        if self._debug:
+            print u' '.join(str(a) for a in args)
 
     def evaluate(self, xpath_expr, context_node=None):
         if context_node is None:
@@ -337,17 +342,17 @@ class ExpressionEngine(object):
         return self._eval_expr(context, expr, None)
 
     def _eval_expr(self, context, expr, inp):
-        print '\n===='
-        print 'eval:', type(expr).__name__, inp
-        print ' context:', context
-        print ' expr:', expr
+        self.dp('\n====')
+        self.dp('eval:', type(expr).__name__, inp)
+        self.dp(' context:', context)
+        self.dp(' expr:', expr)
         eval_func = {
             ast.AbsoluteLocationPath: self._eval_location_path,
             ast.LocationPath: self._eval_location_path,
             ast.Step: self._eval_path_step,
             }.get(type(expr), self._bad_ast)
         result = eval_func(context, expr, inp)
-        print 'result:', result
+        self.dp('result:', result)
         return result
 
     def _bad_ast(self, context, expr, inp):
