@@ -199,6 +199,9 @@ class TestPredicates(XPathExpressionTestCase):
         self.assert_names('preceding::*[$two]', 'mother')
         self.assert_names('preceding::*[$three]', 'aunt')
 
+    def test_position_function(self):
+        self.assert_names('../*[last()]', 'brother')
+
 
 # class TestEngine(TestCase):
 #     def eval_xpath(self, xpath_expr, debug=False):

@@ -259,7 +259,7 @@ def p_qname(p):
 def p_literal(p):
     """Literal : LITERAL
     """
-    p[0] = ast.Literal(p[1])
+    p[0] = ast.StringLiteral(p[1])
 
 
 def p_empty(p):

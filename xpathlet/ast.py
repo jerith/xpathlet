@@ -5,6 +5,9 @@ class Node(object):
     def to_str(self):
         raise NotImplementedError()
 
+    def __repr__(self):
+        return u"<%s: %s>" % (type(self).__name__, self.value)
+
 
 def _to_str(thing):
     if isinstance(thing, Node):
@@ -200,12 +203,9 @@ class FunctionCall(Node):
                             u', '.join(_to_str(a) for a in self.args))
 
 
-class Literal(Node):
+class StringLiteral(Node):
     def __init__(self, value):
         self.value = value
-
-    def __repr__(self):
-        return u"<Literal: %s>" % (self.value)
 
     def to_str(self):
         # TODO: What about non-ASCII, etc.?
@@ -215,9 +215,6 @@ class Literal(Node):
 class Number(Node):
     def __init__(self, value):
         self.value = float(value)
-
-    def __repr__(self):
-        return u"<Number: %s>" % (self.value)
 
     def to_str(self):
         # TODO: What about non-ASCII, etc.?

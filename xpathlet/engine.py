@@ -3,6 +3,7 @@
 from xpathlet import ast
 from xpathlet.parser import parser
 from xpathlet.data_model import XPathRootNode, XPathNodeSet, XPathNumber
+from xpathlet.core_functions import CoreFunctionLibrary
 
 
 def build_xpath_tree(source):
@@ -108,12 +109,16 @@ class Context(object):
 
 
 class ExpressionEngine(object):
-    def __init__(self, root_node, variables=None, debug=False):
+    def __init__(self, root_node, variables=None, function_libraries=None,
+                 debug=False):
         self.debug = debug
         self.root_node = root_node
         if variables is None:
             variables = {}
         self.variables = variables
+        self.function_libraries = [CoreFunctionLibrary()]
+        if function_libraries is not None:
+            self.function_libraries.extent(function_libraries)
 
     def dp(self, *args):
         if self.debug:
@@ -140,6 +145,7 @@ class ExpressionEngine(object):
             ast.Predicate: self._eval_predicate,
             ast.Number: self._eval_number,
             ast.VariableReference: self._eval_variable_reference,
+            ast.FunctionCall: self._eval_function_call,
             }.get(type(expr), self._bad_ast)
         result = eval_func(context, expr)
 
@@ -211,5 +217,13 @@ class ExpressionEngine(object):
     def _eval_number(self, context, number):
         return XPathNumber(number.value)
 
+    def _eval_string(self, context, number):
+        return XPathNumber(number.value)
+
     def _eval_variable_reference(self, context, variable_reference):
         return context.variables[variable_reference.name]
+
+    def _eval_function_call(self, context, function_call):
+        # TODO: Make this suitably flexible.
+        core_funcs = self.function_libraries[0]
+        return core_funcs[function_call.name](context, *function_call.args)

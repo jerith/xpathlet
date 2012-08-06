@@ -1,3 +1,4 @@
+# -*- test-case-name: xpathlet.tests.test_engine -*-
 
 from itertools import dropwhile
 
@@ -19,29 +20,140 @@ def eqname(prefix, name):
 # XPath object types
 
 class XPathObject(object):
+    object_type = None
+
     def __init__(self, value):
         self.value = value
 
     def __repr__(self):
         return u'<%s: %s>' % (type(self).__name__, self.value)
 
+    def coerce(self, object_type):
+        if object_type in ('object', self.object_type):
+            return self
+        return getattr(self, 'to_%s' % (object_type.replace('-', '_'),))()
+
 
 class XPathNodeSet(XPathObject):
+    object_type = 'node-set'
+
     def only(self):
         [node] = self.value
         return node
 
+    def to_string(self):
+        # TODO: implement this
+        raise NotImplementedError()
+
+    def to_boolean(self):
+        return XPathBoolean(len(self.value) != 0)
+
+    def to_number(self):
+        return self.to_string().to_number()
+
 
 class XPathBoolean(XPathObject):
-    pass
+    object_type = 'boolean'
+
+    def to_string(self):
+        return XPathString({
+                True: 'true',
+                False: 'false',
+                }[self.value])
+
+    def to_number(self):
+        return XPathNumber({
+                True: 1,
+                False: 0,
+                }[self.value])
 
 
 class XPathNumber(XPathObject):
-    pass
+    object_type = 'number'
+
+    def to_string(self):
+        # TODO: implement this
+        raise NotImplementedError()
+
+    def to_boolean(self):
+        return XPathBoolean(self.value != 0)
+
+    def to_number(self):
+        # TODO: implement this
+        raise NotImplementedError()
 
 
 class XPathString(XPathObject):
-    pass
+    object_type = 'string'
+
+    def to_boolean(self):
+        return XPathBoolean(len(self.value) != 0)
+
+
+# XPath function infrastructure
+
+def xpath_function(*arg_types, **kw):
+    def func_deco(func):
+        name = kw.get('name', func.__name__.replace('_', '-'))
+        return_type = kw.get('rtype', 'object')
+
+        def wrapper(self, ctx, *args):
+            args = self._process_args(arg_types, args)
+            result = func(ctx, *args)
+            return self._process_result(return_type, result)
+
+        wrapper.xpath_name = name
+        wrapper.xpath_arg_types = arg_types
+        wrapper.xpath_return_type = return_type
+        return wrapper
+    return func_deco
+
+
+class FunctionLibrary(object):
+    def __init__(self, prefix=None):
+        self._prefix = prefix
+        self._collect_functions()
+
+    def _collect_functions(self):
+        self._functions = {}
+        for attr in dir(self):
+            obj = getattr(self, attr)
+            xpath_name = getattr(obj, 'xpath_name', None)
+            if xpath_name is not None:
+                self._functions[xpath_name] = obj
+
+    def _process_args(self, arg_types, args):
+        # TODO: Validate arg_types?
+        out_args = []
+        args = args[:]
+        arg_types = arg_types[:]
+
+        while args:
+            arg = args.pop(0)
+            arg_type = arg_types.pop(0)
+
+            if arg_type.endswith('*'):
+                arg_types.append(arg_type)
+                arg_type = arg_type[:-1]
+            elif arg_type.endswith('?'):
+                arg_type = arg_type[:-1]
+
+            out_args.append(arg.coerce(arg_type))
+
+        return out_args
+
+    def _process_result(self, return_type, result):
+        # TODO: Something useful here?
+        if return_type == 'object':
+            return result
+        assert result.object_type == return_type
+        return result
+
+    def __getitem__(self, name):
+        return self._functions[name]
+
+    def __contains__(self, name):
+        return name in self._functions
 
 
 # XPath node types
