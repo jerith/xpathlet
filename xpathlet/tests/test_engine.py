@@ -1,7 +1,7 @@
 from unittest import TestCase
 from StringIO import StringIO
 
-from xpathlet.engine import ExpressionEngine, build_xpath_tree
+from xpathlet.engine import ExpressionEngine, build_xpath_tree, XPathNodeSet
 
 
 TEST_XML = '\n'.join([
@@ -64,19 +64,70 @@ class TestAxes(TestCase):
         self.assertEqual('foo', node.name)
         return node
 
+    def get_nodeset(self, expr_or_nodeset):
+        if isinstance(expr_or_nodeset, XPathNodeSet):
+            return expr_or_nodeset
+        return self.eval_xpath(expr_or_nodeset, self.get_foo())
+
+    def assert_names(self, expr_or_nodeset, *names):
+        nodeset = self.get_nodeset(expr_or_nodeset)
+        self.assertEqual(set(names), set(node.name for node in nodeset.value))
+
+    def assert_count(self, expr_or_nodeset, count, **node_types):
+        nodeset = self.get_nodeset(expr_or_nodeset)
+        self.assertEqual(count, len(nodeset.value))
+        for node_type, type_count in node_types.items():
+            self.assertEqual(type_count, sum(1 for n in nodeset.value
+                                             if n.node_type == node_type))
+
     def test_select_self(self):
         node = self.get_foo()
-        self.assertEqual(node, self.eval_xpath('self::node()', node).only())
-        self.assertEqual(node, self.eval_xpath('self::*', node).only())
-        self.assertEqual(node, self.eval_xpath('.', node).only())
+        self.assertEqual(node, self.get_nodeset('self::node()').only())
+        self.assertEqual(node, self.get_nodeset('self::*').only())
+        self.assertEqual(node, self.get_nodeset('.').only())
 
     def test_select_child(self):
-        node = self.get_foo()
-        self.assertEqual('daughter',
-                         self.eval_xpath('child::daughter', node).only().name)
-        self.assertEqual('daughter',
-                         self.eval_xpath('child::*', node).only().name)
-        self.assertEqual(3, len(self.eval_xpath('child::node()', node).value))
+        self.assert_names('child::daughter', 'daughter')
+        self.assert_names('child::*', 'daughter')
+        self.assert_count('child::node()', 3)
+
+    def test_select_descendant(self):
+        self.assert_names('descendant::daughter', 'daughter')
+        self.assert_names('descendant::grandson', 'grandson')
+        self.assert_names('descendant::*', 'daughter', 'grandson')
+        self.assert_count('descendant::node()', 6, text=4, element=2)
+        self.assert_count('descendant::text()', 4, text=4)
+
+    def test_select_parent(self):
+        self.assert_names('parent::mother', 'mother')
+        self.assert_names('parent::*', 'mother')
+        self.assert_count('parent::node()', 1)
+        self.assert_count('parent::text()', 0)
+
+    def test_select_ancestor(self):
+        self.assert_names('ancestor::mother', 'mother')
+        self.assert_names('ancestor::grandfather', 'grandfather')
+        self.assert_names('ancestor::*', 'mother', 'grandfather', 'carrot')
+        self.assert_count('ancestor::node()', 4, root=1, element=3)
+        self.assert_count('ancestor::text()', 0)
+
+    def test_select_descendant_or_self(self):
+        self.assert_names('descendant-or-self::foo', 'foo')
+        self.assert_names('descendant-or-self::daughter', 'daughter')
+        self.assert_names('descendant-or-self::grandson', 'grandson')
+        self.assert_names('descendant-or-self::*',
+                          'foo', 'daughter', 'grandson')
+        self.assert_count('descendant-or-self::node()', 7, text=4, element=3)
+        self.assert_count('descendant-or-self::text()', 4, text=4)
+
+    def test_select_ancestor_or_self(self):
+        self.assert_names('ancestor-or-self::foo', 'foo')
+        self.assert_names('ancestor-or-self::mother', 'mother')
+        self.assert_names('ancestor-or-self::grandfather', 'grandfather')
+        self.assert_names('ancestor-or-self::*',
+                          'foo', 'mother', 'grandfather', 'carrot')
+        self.assert_count('ancestor-or-self::node()', 5, root=1, element=4)
+        self.assert_count('ancestor-or-self::text()', 0)
 
 
 class TestEngine(TestCase):
