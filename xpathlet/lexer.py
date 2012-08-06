@@ -51,6 +51,7 @@ _ncname = u'[%s][%s]+' % (_ncname_start_chars, _ncname_chars)
 
 t_ignore = ' \t\r\n'
 
+
 def t_LITERAL(t):
     '''("[^"]*")|('[^']*')'''
     t.value = t.value[1:-1]
@@ -59,7 +60,7 @@ def t_LITERAL(t):
 t_NUMBER = r'([0-9]+(\.([0-9]+)?)?)|(\'[0-9]+)'
 
 
-literals = '()[].,@/|+-=<>*:'
+literals = '()[].,@/|+-=<>*:$'
 
 t_DOUBLECOLON = '::'
 t_DOUBLEDOT = r'\.\.'
@@ -85,6 +86,7 @@ _special_words = {
 def t_NCNAME(t):
     t.type = _special_words.get(t.value, 'NCNAME')
     return t
+
 
 def t_error(t):
     print " - Illegal character %r" % t.value[0]

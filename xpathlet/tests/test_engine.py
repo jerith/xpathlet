@@ -1,7 +1,8 @@
 from unittest import TestCase
 from StringIO import StringIO
 
-from xpathlet.engine import ExpressionEngine, build_xpath_tree, XPathNodeSet
+from xpathlet.data_model import XPathNumber, XPathNodeSet
+from xpathlet.engine import ExpressionEngine, build_xpath_tree
 
 
 TEST_XML = '\n'.join([
@@ -39,8 +40,10 @@ TEST_XML2 = '\n'.join([
 class XPathExpressionTestCase(TestCase):
     DEBUG = False
 
+    test_xml = TEST_XML
+
     def setUp(self):
-        self.xpath_root = build_xpath_tree(StringIO(TEST_XML))
+        self.xpath_root = build_xpath_tree(StringIO(self.test_xml))
         self.engine = ExpressionEngine(self.xpath_root)
 
     def eval_xpath(self, xpath_expr, node=None):
@@ -78,7 +81,9 @@ class XPathExpressionTestCase(TestCase):
         self.assertEqual(attrs, dict((node.name, node.value)
                                      for node in nodeset.value))
 
-    def assert_count(self, expr_or_nodeset, count, **node_types):
+    def assert_count(self, expr_or_nodeset, count=None, **node_types):
+        if count is None:
+            count = sum(node_types.values())
         nodeset = self.get_nodeset(expr_or_nodeset)
         self.assertEqual(count, len(nodeset.value))
         for node_type, type_count in node_types.items():
@@ -102,8 +107,8 @@ class TestAxes(XPathExpressionTestCase):
         self.assert_names('descendant::daughter', 'daughter')
         self.assert_names('descendant::grandson', 'grandson')
         self.assert_names('descendant::*', 'daughter', 'grandson')
-        self.assert_count('descendant::node()', 6, text=4, element=2)
-        self.assert_count('descendant::text()', 4, text=4)
+        self.assert_count('descendant::node()', text=4, element=2)
+        self.assert_count('descendant::text()', text=4)
 
     def test_select_parent(self):
         self.assert_names('parent::mother', 'mother')
@@ -115,8 +120,36 @@ class TestAxes(XPathExpressionTestCase):
         self.assert_names('ancestor::mother', 'mother')
         self.assert_names('ancestor::grandfather', 'grandfather')
         self.assert_names('ancestor::*', 'mother', 'grandfather', 'carrot')
-        self.assert_count('ancestor::node()', 4, root=1, element=3)
+        self.assert_count('ancestor::node()', root=1, element=3)
         self.assert_count('ancestor::text()', 0)
+
+    def test_select_preceeding(self):
+        self.assert_names('preceding::*',
+                          'sister', 'mother', 'aunt', 'grandfather', 'carrot')
+        self.assert_names('../preceding::*', 'aunt', 'grandfather', 'carrot')
+        self.assert_names('/preceding::*')
+        self.assert_count('preceding::node()', text=5, element=5)
+
+    def test_select_following(self):
+        self.assert_names('following::*',
+                          'daughter', 'grandson', 'brother', 'uncle')
+        self.assert_names('../following::*', 'sister', 'foo',
+                          'daughter', 'grandson', 'brother', 'uncle')
+        self.assertEqual(self.eval_xpath('/following::*').value,
+                         self.eval_xpath('/descendant::*').value)
+        self.assert_count('following::node()', text=9, element=4)
+
+    def test_select_preceeding_siblings(self):
+        self.assert_names('preceding-sibling::*', 'sister')
+        self.assert_names('../preceding-sibling::*', 'aunt')
+        self.assert_names('/preceding-sibling::*')
+        self.assert_count('preceding-sibling::node()', text=2, element=1)
+
+    def test_select_following_siblings(self):
+        self.assert_names('following-sibling::*', 'brother')
+        self.assert_names('../following-sibling::*', 'uncle')
+        self.assert_names('/following-sibling::*')
+        self.assert_count('following-sibling::node()', text=2, element=1)
 
     def test_select_descendant_or_self(self):
         self.assert_names('descendant-or-self::foo', 'foo')
@@ -124,8 +157,8 @@ class TestAxes(XPathExpressionTestCase):
         self.assert_names('descendant-or-self::grandson', 'grandson')
         self.assert_names('descendant-or-self::*',
                           'foo', 'daughter', 'grandson')
-        self.assert_count('descendant-or-self::node()', 7, text=4, element=3)
-        self.assert_count('descendant-or-self::text()', 4, text=4)
+        self.assert_count('descendant-or-self::node()', text=4, element=3)
+        self.assert_count('descendant-or-self::text()', text=4)
 
     def test_select_ancestor_or_self(self):
         self.assert_names('ancestor-or-self::foo', 'foo')
@@ -133,7 +166,7 @@ class TestAxes(XPathExpressionTestCase):
         self.assert_names('ancestor-or-self::grandfather', 'grandfather')
         self.assert_names('ancestor-or-self::*',
                           'foo', 'mother', 'grandfather', 'carrot')
-        self.assert_count('ancestor-or-self::node()', 5, root=1, element=4)
+        self.assert_count('ancestor-or-self::node()', root=1, element=4)
         self.assert_count('ancestor-or-self::text()', 0)
 
     def test_select_attribute(self):
@@ -146,23 +179,41 @@ class TestAxes(XPathExpressionTestCase):
 
 
 class TestPredicates(XPathExpressionTestCase):
-    pass
+    def test_forward_postition(self):
+        self.assert_names('/carrot/grandfather/*[1]', 'aunt')
+        self.assert_names('/carrot/grandfather/*[2]', 'mother')
+        self.assert_names('/carrot/grandfather/*[3]', 'uncle')
+
+    def test_backward_postition(self):
+        self.assert_names('preceding::*[1]', 'sister')
+        self.assert_names('preceding::*[2]', 'mother')
+        self.assert_names('preceding::*[3]', 'aunt')
+
+    def test_position_variable(self):
+        self.engine.variables.update({
+                'one': XPathNumber(1.0),
+                'two': XPathNumber(2.0),
+                'three': XPathNumber(3.0),
+                })
+        self.assert_names('preceding::*[$one]', 'sister')
+        self.assert_names('preceding::*[$two]', 'mother')
+        self.assert_names('preceding::*[$three]', 'aunt')
 
 
-class TestEngine(TestCase):
-    def eval_xpath(self, xpath_expr, debug=False):
-        print "\n-----"
-        print "XPath:", xpath_expr
+# class TestEngine(TestCase):
+#     def eval_xpath(self, xpath_expr, debug=False):
+#         print "\n-----"
+#         print "XPath:", xpath_expr
 
-        xpath_root = build_xpath_tree(StringIO(TEST_XML2))
-        engine = ExpressionEngine(xpath_root, debug=debug)
-        result = engine.evaluate(xpath_expr)
+#         xpath_root = build_xpath_tree(StringIO(TEST_XML2))
+#         engine = ExpressionEngine(xpath_root, debug=debug)
+#         result = engine.evaluate(xpath_expr)
 
-        if debug:
-            print "\n-----"
-        print "Result:", result
-        print "-----"
+#         if debug:
+#             print "\n-----"
+#         print "Result:", result
+#         print "-----"
 
-    def test_foo(self):
-        self.eval_xpath(u'/carrot/jr:foo/bar/text()')
-        self.eval_xpath(u'//bar/text()')
+#     def test_foo(self):
+#         self.eval_xpath(u'/carrot/jr:foo/bar/text()')
+#         self.eval_xpath(u'//bar/text()')

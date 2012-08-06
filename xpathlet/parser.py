@@ -109,13 +109,19 @@ def p_primary_expr(p):
     """PrimaryExpr : VariableReference
                    | '(' Expr ')'
                    | Literal
-                   | NUMBER
+                   | Number
                    | FunctionCall
     """
     if p[1] == '(':
         p[0] = p[2]
     else:
         p[0] = p[1]
+
+
+def p_number(p):
+    """Number : NUMBER
+    """
+    p[0] = ast.Number(p[1])
 
 
 def p_function_call(p):

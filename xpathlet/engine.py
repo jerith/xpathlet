@@ -2,20 +2,7 @@
 
 from xpathlet import ast
 from xpathlet.parser import parser
-
-
-# Stuff to work around ElementTree doing silly things.
-
-def split_eqname(name):
-    if name.startswith('{'):
-        return tuple(name[1:].split('}'))
-    return (None, name)
-
-
-def eqname(prefix, name):
-    if prefix is None:
-        return name
-    return '{%s}%s' % (prefix, name)
+from xpathlet.data_model import XPathRootNode, XPathNodeSet, XPathNumber
 
 
 def build_xpath_tree(source):
@@ -33,215 +20,6 @@ def build_xpath_tree(source):
 
     doc = ElementTree(ip.root)
     return XPathRootNode(doc, namespaces)
-
-
-# XPath object types
-
-class XPathObject(object):
-    def __init__(self, value):
-        self.value = value
-
-    def __repr__(self):
-        return u'<%s: %s>' % (type(self).__name__, self.value)
-
-
-class XPathNodeSet(XPathObject):
-    def only(self):
-        [node] = self.value
-        return node
-
-
-class XPathBoolean(XPathObject):
-    pass
-
-
-class XPathNumber(XPathObject):
-    pass
-
-
-class XPathString(XPathObject):
-    pass
-
-
-# XPath node types
-
-class XPathNode(object):
-    node_type = None
-
-    def string_value(self):
-        raise NotImplementedError
-
-    def expanded_name(self):
-        return None
-
-    def get_children(self):
-        return ()
-
-    def get_attributes(self):
-        return ()
-
-    def get_descendants(self, with_self=False):
-        if with_self:
-            yield self
-        for child in self.get_children():
-            yield child
-            for desc in child.get_descendants():
-                yield desc
-
-    def get_parents(self):
-        # The silly name is so that we can return a zero-or-one list to handle
-        # the root element not having a parent.
-        return [self.parent]
-
-    def get_ancestors(self, with_self=False):
-        if with_self:
-            yield self
-        parents = self.get_parents()
-        while parents:
-            [parent] = parents
-            yield parent
-            parents = parent.get_parents()
-
-    def get_root_node(self):
-        return self.parent.get_root_node()
-
-
-class XPathRootNode(XPathNode):
-    node_type = 'root'
-
-    def __init__(self, document, namespaces):
-        self._document = document
-        self._namespaces = namespaces
-        self._children = None
-        # Unlazy this for now.
-        self.get_children()
-
-    def get_children(self):
-        # TODO: Build non-element children.
-        if self._children is None:
-            self._children = [XPathElementNode(self, self._document.getroot())]
-        return self._children
-
-    def get_parents(self):
-        return []
-
-    def string_value(self):
-        # Concatenation of all Text node descendants.
-        return u''.join(n.string_value()
-                        for n in self.get_descendants(XPathTextNode)
-                        if n.node_type == 'text')
-
-    def get_root_node(self):
-        return self
-
-
-class XPathElementNode(XPathNode):
-    node_type = 'element'
-
-    def __init__(self, parent, enode):
-        self.parent = parent
-        self._enode = enode
-        self.prefix, self.name = split_eqname(enode.tag)
-        self._children = None
-        self._attributes = None
-        self.xml_id = None
-        # Unlazy this for now.
-        self.get_children()
-
-    def get_children(self):
-        # TODO: Build non-{element, text} children.
-        if self._children is None:
-            self._children = []
-            if self._enode.text is not None:
-                self._children.append(XPathTextNode(self, self._enode.text))
-            for enode in self._enode:
-                self._children.append(XPathElementNode(self, enode))
-                if enode.tail is not None:
-                    self._children.append(XPathTextNode(self, enode.tail))
-        return self._children
-
-    def get_attributes(self):
-        if self._attributes is None:
-            self._attributes = [XPathAttributeNode(self, k, v)
-                                for k, v in self._enode.attrib.items()]
-        return self._attributes
-
-    def expanded_name(self):
-        return (self.prefix, self.name)
-
-    def string_value(self):
-        # Concatenation of all Text node descendants.
-        return u''.join(n.string_value()
-                        for n in self.get_descendants(XPathTextNode)
-                        if n.node_type == 'text')
-
-    def __repr__(self):
-        return u'<XPathElementNode %s>' % (eqname(self.prefix, self.name),)
-
-
-class XPathAttributeNode(XPathNode):
-    node_type = 'attribute'
-
-    def __init__(self, parent, name, value):
-        self.parent = parent
-        self.prefix, self.name = split_eqname(name)
-        self.value = value
-
-    def expanded_name(self):
-        return (self.prefix, self.name)
-
-    def string_value(self):
-        # TODO: Figure out what this means.
-        return self.value
-
-    def __repr__(self):
-        return u'<XPathAttributeNode %s=%r>' % (eqname(self.prefix, self.name),
-                                                self.value)
-
-
-class XPathNamespaceNode(XPathNode):
-    node_type = 'namespace'
-
-    def __init__(self, parent, prefix, uri):
-        self.parent = parent
-        self._prefix = prefix
-        self._uri = uri
-
-    def expanded_name(self):
-        return (None, self._prefix)
-
-    def string_value(self):
-        return self._uri
-
-
-class XPathTextNode(XPathNode):
-    node_type = 'text'
-
-    def __init__(self, parent, text):
-        self.parent = parent
-        self.text = text
-
-    def string_value(self):
-        return self.text
-
-    def __repr__(self):
-        return u'<XPathTextNode %r>' % (self.text,)
-
-
-class XPathProcessingInstructionNode(XPathNode):
-    node_type = 'processing-instruction'
-
-    def __init__(self, parent, enode):
-        # TODO: Implement this?
-        raise NotImplementedError()
-
-
-class XPathCommentNode(XPathNode):
-    node_type = 'comment'
-
-    def __init__(self, parent, enode):
-        # TODO: Implement this?
-        raise NotImplementedError()
 
 
 class Axis(object):
@@ -270,16 +48,16 @@ class Axis(object):
             return context.node.get_ancestors()
 
         if self.axis == 'following-sibling':
-            pass
+            return context.node.get_following(only_siblings=True)
 
         if self.axis == 'preceding-sibling':
-            pass
+            return context.node.get_preceeding(only_siblings=True)
 
         if self.axis == 'following':
-            pass
+            return context.node.get_following()
 
         if self.axis == 'preceding':
-            pass
+            return context.node.get_preceeding()
 
         if self.axis == 'attribute':
             return context.node.get_attributes()
@@ -330,9 +108,12 @@ class Context(object):
 
 
 class ExpressionEngine(object):
-    def __init__(self, root_node, debug=False):
+    def __init__(self, root_node, variables=None, debug=False):
         self.debug = debug
         self.root_node = root_node
+        if variables is None:
+            variables = {}
+        self.variables = variables
 
     def dp(self, *args):
         if self.debug:
@@ -341,56 +122,63 @@ class ExpressionEngine(object):
     def evaluate(self, xpath_expr, context_node=None):
         if context_node is None:
             context_node = self.root_node
-        context = Context(context_node, 0, 0, {}, {},
+        context = Context(context_node, 0, 0, self.variables.copy(), {},
                           self.root_node._namespaces)
         expr = parser.parse(xpath_expr)
-        return self._eval_expr(context, expr, None)
+        return self._eval_expr(context, expr)
 
-    def _eval_expr(self, context, expr, inp):
+    def _eval_expr(self, context, expr):
         self.dp('\n====')
-        self.dp('eval:', type(expr).__name__, inp)
+        self.dp('eval:', type(expr).__name__)
         self.dp(' context:', context)
         self.dp(' expr:', expr)
+
         eval_func = {
             ast.AbsoluteLocationPath: self._eval_location_path,
             ast.LocationPath: self._eval_location_path,
             ast.Step: self._eval_path_step,
+            ast.Predicate: self._eval_predicate,
+            ast.Number: self._eval_number,
+            ast.VariableReference: self._eval_variable_reference,
             }.get(type(expr), self._bad_ast)
-        result = eval_func(context, expr, inp)
+        result = eval_func(context, expr)
+
         self.dp('result:', result)
         return result
 
-    def _bad_ast(self, context, expr, inp):
+    def _bad_ast(self, context, expr):
         raise NotImplementedError('AST eval: %s' % (type(expr),))
 
-    def _eval_location_path(self, context, expr, inp):
+    def _eval_location_path(self, context, expr):
         nodes = set([context.node])
         if expr.absolute:
-            nodes = set([context.node.get_root_node()])
+            nodes = set([context.node.get_root()])
 
         for step in expr.steps:
             assert isinstance(step, ast.Step)
             new_nodes = set()
             for node in nodes:
                 new_nodes.update(self._eval_expr(
-                        context.sub_context(node=node), step, None))
+                        context.sub_context(node=node), step))
             nodes = new_nodes
 
         return XPathNodeSet(nodes)
 
-    def _eval_path_step(self, context, step, inp):
+    def _eval_path_step(self, context, step):
         axis = Axis(step.axis)
 
         nodes = set()
+        i = 1
         for node in axis.select_nodes(context):
             if self._test_node(context, step.node_test, axis, node):
-                nodes.add(node)
+                nodes.add((i, node))
+                i += 1
 
         for predicate in step.predicates:
             assert isinstance(predicate, ast.Predicate)
-            raise NotImplementedError()
+            nodes = self._filter_predicate(context, predicate, nodes)
 
-        return nodes
+        return [node for _i, node in nodes]
 
     def _test_node(self, context, test_expr, axis, node):
         if isinstance(test_expr, ast.NameTest):
@@ -404,3 +192,24 @@ class ExpressionEngine(object):
             return test_expr.node_type in ('node', node.node_type)
 
         assert False
+
+    def _filter_predicate(self, context, predicate, nodes):
+        new_nodes = []
+        for i, node in nodes:
+            ctx = context.sub_context(node, i, len(nodes))
+            if self._eval_expr(ctx, predicate):
+                new_nodes.append((i, node))
+
+        return new_nodes
+
+    def _eval_predicate(self, context, predicate):
+        result = self._eval_expr(context, predicate.expr)
+        if isinstance(result, XPathNumber):
+            return result.value == context.position
+        return result
+
+    def _eval_number(self, context, number):
+        return XPathNumber(number.value)
+
+    def _eval_variable_reference(self, context, variable_reference):
+        return context.variables[variable_reference.name]

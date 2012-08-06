@@ -210,3 +210,15 @@ class Literal(Node):
     def to_str(self):
         # TODO: What about non-ASCII, etc.?
         return repr(self.value).lstrip('u')
+
+
+class Number(Node):
+    def __init__(self, value):
+        self.value = float(value)
+
+    def __repr__(self):
+        return u"<Number: %s>" % (self.value)
+
+    def to_str(self):
+        # TODO: What about non-ASCII, etc.?
+        return repr(self.value)
