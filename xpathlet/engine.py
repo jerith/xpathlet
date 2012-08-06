@@ -77,6 +77,9 @@ class XPathNode(object):
     def get_children(self):
         return ()
 
+    def get_attributes(self):
+        return ()
+
     def get_descendants(self, with_self=False):
         if with_self:
             yield self
@@ -182,18 +185,18 @@ class XPathAttributeNode(XPathNode):
     def __init__(self, parent, name, value):
         self.parent = parent
         self.prefix, self.name = split_eqname(name)
-        self._value = value
+        self.value = value
 
     def expanded_name(self):
         return (self.prefix, self.name)
 
     def string_value(self):
         # TODO: Figure out what this means.
-        return self._value
+        return self.value
 
     def __repr__(self):
         return u'<XPathAttributeNode %s=%r>' % (eqname(self.prefix, self.name),
-                                                self._value)
+                                                self.value)
 
 
 class XPathNamespaceNode(XPathNode):

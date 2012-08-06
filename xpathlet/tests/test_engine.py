@@ -11,8 +11,8 @@ TEST_XML = '\n'.join([
         '    <aunt/>',
         '    <mother>',
         '      <sister/>',
-        '      <foo>',
-        '        <daughter>',
+        '      <foo att1="bar" att2="baz">',
+        '        <daughter datt="quux">',
         '          <grandson/>',
         '        </daughter>',
         '      </foo>',
@@ -36,7 +36,7 @@ TEST_XML2 = '\n'.join([
         ])
 
 
-class TestAxes(TestCase):
+class XPathExpressionTestCase(TestCase):
     DEBUG = False
 
     def setUp(self):
@@ -73,6 +73,11 @@ class TestAxes(TestCase):
         nodeset = self.get_nodeset(expr_or_nodeset)
         self.assertEqual(set(names), set(node.name for node in nodeset.value))
 
+    def assert_attrs(self, expr_or_nodeset, **attrs):
+        nodeset = self.get_nodeset(expr_or_nodeset)
+        self.assertEqual(attrs, dict((node.name, node.value)
+                                     for node in nodeset.value))
+
     def assert_count(self, expr_or_nodeset, count, **node_types):
         nodeset = self.get_nodeset(expr_or_nodeset)
         self.assertEqual(count, len(nodeset.value))
@@ -80,6 +85,8 @@ class TestAxes(TestCase):
             self.assertEqual(type_count, sum(1 for n in nodeset.value
                                              if n.node_type == node_type))
 
+
+class TestAxes(XPathExpressionTestCase):
     def test_select_self(self):
         node = self.get_foo()
         self.assertEqual(node, self.get_nodeset('self::node()').only())
@@ -128,6 +135,18 @@ class TestAxes(TestCase):
                           'foo', 'mother', 'grandfather', 'carrot')
         self.assert_count('ancestor-or-self::node()', 5, root=1, element=4)
         self.assert_count('ancestor-or-self::text()', 0)
+
+    def test_select_attribute(self):
+        self.assert_attrs('attribute::*', att1='bar', att2='baz')
+        self.assert_attrs('attribute::node()', att1='bar', att2='baz')
+        self.assert_attrs('attribute::att1', att1='bar')
+        self.assert_attrs('attribute::att2', att2='baz')
+        self.assert_attrs('.//attribute::*',
+                          att1='bar', att2='baz', datt='quux')
+
+
+class TestPredicates(XPathExpressionTestCase):
+    pass
 
 
 class TestEngine(TestCase):
