@@ -10,9 +10,10 @@ Features
 --------
 
 At the moment, xpathlet consists of a probably-buggy parser that builds a
-probably-broken AST. In the future, it will hopefully be a fully
-standards-compliant [XPath 1.0][2] implementation that operates on ElementTree
-objects.
+probably-broken AST and a definitely-incomplete expression engine that
+understands basic location paths and node test. In the future, it will
+hopefully be a fully standards-compliant [XPath 1.0][2] implementation that
+operates on ElementTree objects.
 
 Why? WHY!?
 ----------
