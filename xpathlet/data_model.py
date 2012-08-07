@@ -65,13 +65,18 @@ class XPathObject(object):
 class XPathNodeSet(XPathObject):
     object_type = 'node-set'
 
+    def __init__(self, value):
+        self.value = list(sorted(value, key=lambda i: i._doc_position))
+
     def only(self):
         [node] = self.value
         return node
 
     def to_string(self):
-        # TODO: implement this
-        raise NotImplementedError()
+        value = ''
+        if self.value:
+            value = self.value[0].string_value()
+        return XPathString(value)
 
     def to_boolean(self):
         return XPathBoolean(len(self.value) != 0)
@@ -305,10 +310,16 @@ class XPathNode(object):
     node_type = None
 
     def string_value(self):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def expanded_name(self):
         return None
+
+    def _walk_in_doc_order(self):
+        yield self
+        for child in self.get_children():
+            for node in child._walk_in_doc_order():
+                yield node
 
     def get_children(self):
         return ()
@@ -373,6 +384,11 @@ class XPathRootNode(XPathNode):
         self._children = None
         # Unlazy this for now.
         self.get_children()
+        self._tag_nodes()
+
+    def _tag_nodes(self):
+        for i, node in enumerate(self._walk_in_doc_order()):
+            node._doc_position = i
 
     def get_children(self):
         # TODO: Build non-element children.
@@ -412,7 +428,18 @@ class XPathElementNode(XPathNode):
         self._attributes = None
         self.xml_id = None
         # Unlazy this for now.
+        self.get_attributes()
         self.get_children()
+
+    def _walk_in_doc_order(self):
+        yield self
+        # TODO: Namespace nodes.
+        for attr in self.get_attributes():
+            for node in attr._walk_in_doc_order():
+                yield node
+        for child in self.get_children():
+            for node in child._walk_in_doc_order():
+                yield node
 
     def get_children(self):
         # TODO: Build non-{element, text} children.
