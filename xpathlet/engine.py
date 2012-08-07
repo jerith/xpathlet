@@ -2,7 +2,8 @@
 
 from xpathlet import ast
 from xpathlet.parser import parser
-from xpathlet.data_model import XPathRootNode, XPathNodeSet, XPathNumber
+from xpathlet.data_model import (
+    XPathRootNode, XPathNodeSet, XPathNumber, XPathString)
 from xpathlet.core_functions import CoreFunctionLibrary
 
 
@@ -144,8 +145,10 @@ class ExpressionEngine(object):
             ast.Step: self._eval_path_step,
             ast.Predicate: self._eval_predicate,
             ast.Number: self._eval_number,
+            ast.StringLiteral: self._eval_string_literal,
             ast.VariableReference: self._eval_variable_reference,
             ast.FunctionCall: self._eval_function_call,
+            ast.OperatorExpr: self._eval_operator_expression,
             }.get(type(expr), self._bad_ast)
         result = eval_func(context, expr)
 
@@ -217,13 +220,27 @@ class ExpressionEngine(object):
     def _eval_number(self, context, number):
         return XPathNumber(number.value)
 
-    def _eval_string(self, context, number):
-        return XPathNumber(number.value)
+    def _eval_string_literal(self, context, string_literal):
+        return XPathString(string_literal.value)
 
     def _eval_variable_reference(self, context, variable_reference):
         return context.variables[variable_reference.name]
 
     def _eval_function_call(self, context, function_call):
         # TODO: Make this suitably flexible.
+        args = [self._eval_expr(context, arg) for arg in function_call.args]
         core_funcs = self.function_libraries[0]
-        return core_funcs[function_call.name](context, *function_call.args)
+        return core_funcs[function_call.name](context, *args)
+
+    def _eval_operator_expression(self, context, operator_expr):
+        parts = [self._eval_expr(context, part)
+                 for part in operator_expr.parts]
+
+        if operator_expr.op in set(['=', '!=', '<=', '<', '>=', '>']):
+            return self._apply_comparison(context, operator_expr.op, parts)
+
+        raise NotImplementedError()
+
+    def _apply_comparison(self, context, op, parts):
+        left, right = parts
+        return left.compare(right, op)

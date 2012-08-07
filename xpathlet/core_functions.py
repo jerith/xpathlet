@@ -75,13 +75,13 @@ class CoreFunctionLibrary(FunctionLibrary):
     def string_length(ctx, text=None):
         if text is None:
             text = XPathString(ctx.node.string_value())
-        return len(text.value)
+        return XPathNumber(len(text.value))
 
     @xpath_function('string?', rtype='string')
     def normalize_space(ctx, text=None):
         if text is None:
             text = XPathString(ctx.node.string_value())
-        return u' '.join(text.value.strip().split())
+        return XPathString(u' '.join(text.value.strip().split()))
 
     @xpath_function('string', 'string', 'string', rtype='string')
     def translate(ctx, text, from_chars, to_chars):

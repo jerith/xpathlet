@@ -1,5 +1,9 @@
 # -*- test-case-name: xpathlet.tests.test_engine -*-
 
+# NOTE: Sections of the XPath language specification are quoted in comments
+# below. The full document can be found at: http://www.w3.org/TR/xpath/
+
+import operator
 from itertools import dropwhile
 
 
@@ -22,6 +26,24 @@ def eqname(prefix, name):
 class XPathObject(object):
     object_type = None
 
+    COMP_FUNCTIONS = {
+        '=': operator.eq,
+        '!=': operator.ne,
+        '<': operator.lt,
+        '<=': operator.le,
+        '>': operator.gt,
+        '>=': operator.ge,
+        }
+
+    COMP_REFLECTIONS = {
+        '=': '=',
+        '!=': '!=',
+        '<': '>',
+        '<=': '>=',
+        '>': '<',
+        '>=': '<=',
+        }
+
     def __init__(self, value):
         self.value = value
 
@@ -32,6 +54,12 @@ class XPathObject(object):
         if object_type in ('object', self.object_type):
             return self
         return getattr(self, 'to_%s' % (object_type.replace('-', '_'),))()
+
+    def compare(self, other, operator):
+        return XPathBoolean(self._xpath_cmp(other, operator))
+
+    def _xpath_cmp(self, other, operator):
+        raise NotImplementedError()
 
 
 class XPathNodeSet(XPathObject):
@@ -51,21 +79,78 @@ class XPathNodeSet(XPathObject):
     def to_number(self):
         return self.to_string().to_number()
 
+    def _xpath_cmp(self, other, operator):
+        # This doesn't actually perform comparisons. It merely transforms
+        # itself into something that does.
+
+        # If one object to be compared is a node-set and the other is a
+        # boolean, then the comparison will be true if and only if the result
+        # of performing the comparison on the boolean and on the result of
+        # converting the node-set to a boolean using the boolean function is
+        # true.
+        if other.object_type == 'boolean':
+            return self.to_boolean._xpath_cmp(other, operator)
+
+        # The rest of these iterate over nodes until a successful comparison is
+        # found.
+        for node in self.value:
+            # If both objects to be compared are node-sets, then the comparison
+            # will be true if and only if there is a node in the first node-set
+            # and a node in the second node-set such that the result of
+            # performing the comparison on the string-values of the two nodes
+            # is true.
+
+            # If one object to be compared is a node-set and the other is a
+            # string, then the comparison will be true if and only if there is
+            # a node in the node-set such that the result of performing the
+            # comparison on the string-value of the node and the other string
+            # is true.
+            node_val = XPathString(node.string_value())
+
+            # If one object to be compared is a node-set and the other is a
+            # number, then the comparison will be true if and only if there is
+            # a node in the node-set such that the result of performing the
+            # comparison on the number to be compared and on the result of
+            # converting the string-value of that node to a number using the
+            # number function is true.
+            if other.object_type == 'number':
+                node_val = node_val.to_number()
+
+            if node_val._xpath_cmp(other, operator):
+                return True
+
+        # Otherwise return False.
+        return False
+
 
 class XPathBoolean(XPathObject):
     object_type = 'boolean'
 
     def to_string(self):
-        return XPathString({
-                True: 'true',
-                False: 'false',
-                }[self.value])
+        return XPathString({True: 'true', False: 'false'}[self.value])
 
     def to_number(self):
-        return XPathNumber({
-                True: 1,
-                False: 0,
-                }[self.value])
+        return XPathNumber({True: 1, False: 0}[self.value])
+
+    def _xpath_cmp(self, other, operator):
+        # Only node-sets understand how to unpack themselves for comparison.
+        if other.object_type == 'node-set':
+            return other._xpath_cmp(self, self.COMP_REFLECTIONS[operator])
+
+        # When neither object to be compared is a node-set and the operator is
+        # = or !=, then the objects are compared by converting them to a common
+        # type as follows and then comparing them.
+        if operator in ('=', '!='):
+            # If at least one object to be compared is a boolean, then each
+            # object to be compared is converted to a boolean as if by applying
+            # the boolean function.
+            return self.COMP_FUNCTIONS[operator](
+                self.value, other.coerce('boolean').value)
+
+        # When neither object to be compared is a node-set and the operator is
+        # <=, <, >= or >, then the objects are compared by converting both
+        # objects to numbers and comparing the numbers according to IEEE 754.
+        return self.to_number()._xpath_cmp(other, operator)
 
 
 class XPathNumber(XPathObject):
@@ -78,16 +163,74 @@ class XPathNumber(XPathObject):
     def to_boolean(self):
         return XPathBoolean(self.value != 0)
 
-    def to_number(self):
-        # TODO: implement this
-        raise NotImplementedError()
+    def _xpath_cmp(self, other, operator):
+        # Only node-sets understand how to unpack themselves for comparison.
+        if other.object_type == 'node-set':
+            return other._xpath_cmp(self, self.COMP_REFLECTIONS[operator])
+
+        # When neither object to be compared is a node-set and the operator is
+        # = or !=, then the objects are compared by converting them to a common
+        # type as follows and then comparing them.
+        if operator in ('=', '!='):
+            # If at least one object to be compared is a boolean, then each
+            # object to be compared is converted to a boolean as if by applying
+            # the boolean function.
+            if other.object_type == 'boolean':
+                return self.to_boolean()._xpath_cmp(other, operator)
+
+            # Otherwise, if at least one object to be compared is a number,
+            # then each object to be compared is converted to a number as if by
+            # applying the number function.
+            return self.COMP_FUNCTIONS[operator](
+                self.value, other.coerce('number').value)
+
+        # When neither object to be compared is a node-set and the operator is
+        # <=, <, >= or >, then the objects are compared by converting both
+        # objects to numbers and comparing the numbers according to IEEE 754.
+        return self.COMP_FUNCTIONS[operator](
+            self.value, other.coerce('number').value)
 
 
 class XPathString(XPathObject):
     object_type = 'string'
 
+    def to_number(self):
+        # TODO: implement this
+        raise NotImplementedError()
+
     def to_boolean(self):
         return XPathBoolean(len(self.value) != 0)
+
+    def _xpath_cmp(self, other, operator):
+        # Only node-sets understand how to unpack themselves for comparison.
+        if other.object_type == 'node-set':
+            return other._xpath_cmp(self, self.COMP_REFLECTIONS[operator])
+
+        # When neither object to be compared is a node-set and the operator is
+        # = or !=, then the objects are compared by converting them to a common
+        # type as follows and then comparing them.
+        if operator in ('=', '!='):
+            # If at least one object to be compared is a boolean, then each
+            # object to be compared is converted to a boolean as if by applying
+            # the boolean function.
+            if other.object_type == 'boolean':
+                return self.to_boolean()._xpath_cmp(other, operator)
+
+            # Otherwise, if at least one object to be compared is a number,
+            # then each object to be compared is converted to a number as if by
+            # applying the number function.
+            if other.object_type == 'number':
+                return self.to_number()._xpath_cmp(other, operator)
+
+            # Otherwise, both objects to be compared are converted to strings
+            # as if by applying the string function.
+            return self.COMP_FUNCTIONS[operator](
+                self.value, other.coerce('string').value)
+
+        # When neither object to be compared is a node-set and the operator is
+        # <=, <, >= or >, then the objects are compared by converting both
+        # objects to numbers and comparing the numbers according to IEEE 754.
+        return self.to_number()._xpath_cmp(other, operator)
 
 
 # XPath function infrastructure
@@ -125,8 +268,8 @@ class FunctionLibrary(object):
     def _process_args(self, arg_types, args):
         # TODO: Validate arg_types?
         out_args = []
-        args = args[:]
-        arg_types = arg_types[:]
+        args = list(args)
+        arg_types = list(arg_types)
 
         while args:
             arg = args.pop(0)

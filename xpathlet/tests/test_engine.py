@@ -201,22 +201,23 @@ class TestPredicates(XPathExpressionTestCase):
 
     def test_position_function(self):
         self.assert_names('../*[last()]', 'brother')
+        self.assert_names('../*[string-length("12")]', 'foo')
 
 
-# class TestEngine(TestCase):
-#     def eval_xpath(self, xpath_expr, debug=False):
-#         print "\n-----"
-#         print "XPath:", xpath_expr
+class TestExpressions(XPathExpressionTestCase):
+    def test_equality_numbers(self):
+        self.assertEqual(True, self.eval_xpath('1 = 1').value)
+        self.assertEqual(False, self.eval_xpath('1 = 2').value)
+        self.assertEqual(False, self.eval_xpath('1 != 1').value)
+        self.assertEqual(True, self.eval_xpath('1 != 2').value)
 
-#         xpath_root = build_xpath_tree(StringIO(TEST_XML2))
-#         engine = ExpressionEngine(xpath_root, debug=debug)
-#         result = engine.evaluate(xpath_expr)
+    def test_comparison_numbers(self):
+        self.assertEqual(True, self.eval_xpath('1 <= 1').value)
+        self.assertEqual(False, self.eval_xpath('1 < 1').value)
+        self.assertEqual(True, self.eval_xpath('1 <= 2').value)
+        self.assertEqual(True, self.eval_xpath('1 < 2').value)
 
-#         if debug:
-#             print "\n-----"
-#         print "Result:", result
-#         print "-----"
-
-#     def test_foo(self):
-#         self.eval_xpath(u'/carrot/jr:foo/bar/text()')
-#         self.eval_xpath(u'//bar/text()')
+        self.assertEqual(True, self.eval_xpath('1 >= 1').value)
+        self.assertEqual(False, self.eval_xpath('1 > 1').value)
+        self.assertEqual(True, self.eval_xpath('2 >= 1').value)
+        self.assertEqual(True, self.eval_xpath('2 > 1').value)
