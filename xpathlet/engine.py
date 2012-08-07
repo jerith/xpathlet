@@ -233,14 +233,14 @@ class ExpressionEngine(object):
         return core_funcs[function_call.name](context, *args)
 
     def _eval_operator_expression(self, context, operator_expr):
-        parts = [self._eval_expr(context, part)
-                 for part in operator_expr.parts]
+        left = self._eval_expr(context, operator_expr.left)
+        right = self._eval_expr(context, operator_expr.right)
+
+        if operator_expr.op == '|':
+            assert all(n.object_type == 'node-set' for n in (left, right))
+            return XPathNodeSet(set(left.value) | set(right.value))
 
         if operator_expr.op in set(['=', '!=', '<=', '<', '>=', '>']):
-            return self._apply_comparison(context, operator_expr.op, parts)
+            return left.compare(right, operator_expr.op)
 
         raise NotImplementedError()
-
-    def _apply_comparison(self, context, op, parts):
-        left, right = parts
-        return left.compare(right, op)

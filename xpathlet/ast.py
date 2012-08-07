@@ -150,21 +150,17 @@ class FilterExpr(Node):
 
 
 class OperatorExpr(Node):
-    def __init__(self, op, *parts):
+    def __init__(self, op, left, right):
         self.op = op
-        self.parts = []
-        for part in parts:
-            # if isinstance(part, OperatorExpr) and part.op == op:
-            #     self.parts.extend(part.parts)
-            # else:
-            #     self.parts.append(part)
-            self.parts.append(part)
+        self.left = left
+        self.right = right
 
     def __repr__(self):
-        return u"<OperatorExpr %s: %s>" % (self.op, self.parts)
+        return u"<OperatorExpr %s: (%s, %s)>" % (
+            self.op, self.left, self.right)
 
     def to_str(self):
-        return (u' %s ' % (self.op,)).join(_to_str(p) for p in self.parts)
+        return u'%s %s %s' % (_to_str(self.left), self.op, _to_str(self.right))
 
 
 class UnaryExpr(Node):
