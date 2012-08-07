@@ -162,8 +162,16 @@ class XPathNumber(XPathObject):
     object_type = 'number'
 
     def to_string(self):
-        # TODO: implement this
-        raise NotImplementedError()
+        val = str(self.value)
+        if str(self.value) == str(float("nan")):
+            val = "NaN"
+        elif str(self.value) == str(float("inf")):
+            val = "Infinity"
+        elif str(self.value) == str(float("-inf")):
+            val = "-Infinity"
+        elif self.value == int(self.value):
+            val = str(int(self.value))
+        return XPathString(val)
 
     def to_boolean(self):
         return XPathBoolean(self.value != 0)
@@ -200,8 +208,13 @@ class XPathString(XPathObject):
     object_type = 'string'
 
     def to_number(self):
-        # TODO: implement this
-        raise NotImplementedError()
+        try:
+            val = float(self.value)
+        except ValueError:
+            val = float("nan")
+        if str(val) in (str(float("inf")), str(float("-inf"))):
+            val = float("nan")
+        return XPathNumber(val)
 
     def to_boolean(self):
         return XPathBoolean(len(self.value) != 0)
