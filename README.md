@@ -9,11 +9,21 @@ implementation.
 Features
 --------
 
-At the moment, xpathlet consists of a probably-buggy parser that builds a
-probably-broken AST and a definitely-incomplete expression engine that
-understands basic location paths and node test. In the future, it will
-hopefully be a fully standards-compliant [XPath 1.0][2] implementation that
-operates on ElementTree objects.
+At the moment, xpathlet consists of:
+
+* A probably-buggy parser that builds a probably-broken AST.
+
+* A definitely-incomplete expression engine that understands:
+    * Basic location paths and node tests.
+    * Positional predicate expressions.
+    * Comparison operators.
+    * Functions calls.
+
+* A definitely-incomplete core function library.
+
+In the future, it will hopefully be a fully standards-compliant [XPath 1.0][2]
+implementation that operates on ElementTree objects. Except maybe not around
+namespaces.
 
 Why? WHY!?
 ----------
