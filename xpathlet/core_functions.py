@@ -1,3 +1,5 @@
+from math import floor, ceil
+
 from xpathlet.data_model import (
     XPathNodeSet, XPathBoolean, XPathNumber, XPathString,
     FunctionLibrary, xpath_function)
@@ -21,18 +23,35 @@ class CoreFunctionLibrary(FunctionLibrary):
 
     @xpath_function('object', rtype='node-set')
     def id(ctx, obj):
-        raise NotImplementedError()
+        if obj.object_type == 'node-set':
+            ids_str = ' '.join(n.string_value() for n in obj.value)
+        else:
+            ids_str = obj.coerce('string').value
+        id_nodes = ctx.node.get_root()._xml_ids
+        nodes = set()
+        for id_str in ids_str.split():
+            node = id_nodes.get(id_str)
+            if node is not None:
+                nodes.add(node)
+        return XPathNodeSet(nodes)
 
     @xpath_function('node-set?', rtype='string')
     def local_name(ctx, node_set=None):
-        raise NotImplementedError()
+        if node_set is None:
+            return XPathString(ctx.node.name)
+
+        return XPathString(node_set.value[0].name)
 
     @xpath_function('node-set?', rtype='string')
     def namespace_uri(ctx, node_set=None):
-        raise NotImplementedError()
+        if node_set is None:
+            return XPathString(ctx.node.prefix)
+
+        return XPathString(node_set.value[0].prefix)
 
     @xpath_function('node-set?', rtype='string')
     def name(ctx, node_set=None):
+        # TODO: Implement
         raise NotImplementedError()
 
     # String Functions
@@ -41,7 +60,7 @@ class CoreFunctionLibrary(FunctionLibrary):
     def string(ctx, obj=None):
         if obj is None:
             obj = XPathNodeSet([ctx.node])
-        return obj.to_string()
+        return obj.coerce('string')
 
     @xpath_function('string', 'string', 'string*', rtype='string')
     def concat(ctx, strings):
@@ -85,12 +104,52 @@ class CoreFunctionLibrary(FunctionLibrary):
 
     @xpath_function('string', 'string', 'string', rtype='string')
     def translate(ctx, text, from_chars, to_chars):
+        # TODO: Implement
         raise NotImplementedError()
 
     # Boolean Functions
 
-    # TODO: These.
+    @xpath_function('object', rtype='boolean')
+    def boolean(ctx, obj):
+        return obj.coerce('boolean')
+
+    @xpath_function('boolean', rtype='boolean', name='not')
+    def xpath_not(ctx, obj):
+        return XPathBoolean(not obj.value)
+
+    @xpath_function(rtype='boolean')
+    def true(ctx):
+        return XPathBoolean(True)
+
+    @xpath_function(rtype='boolean')
+    def false(ctx):
+        return XPathBoolean(False)
+
+    @xpath_function('string', rtype='boolean')
+    def lang(ctx, obj):
+        # TODO: Implement
+        raise NotImplementedError()
 
     # Number Functions
 
-    # TODO: These.
+    @xpath_function('object?', rtype='number')
+    def number(ctx, obj=None):
+        if obj is None:
+            obj = XPathNodeSet([ctx.node])
+        return obj.coerce('number')
+
+    @xpath_function('node-set', rtype='number')
+    def sum(ctx, node_set):
+        return XPathNumber(sum(n.to_number().value for n in node_set.value))
+
+    @xpath_function('number', rtype='number')
+    def floor(ctx, number):
+        return XPathNumber(floor(number.value))
+
+    @xpath_function('number', rtype='number')
+    def ceil(ctx, number):
+        return XPathNumber(ceil(number.value))
+
+    @xpath_function('number', rtype='number')
+    def round(ctx, number):
+        return XPathNumber(round(number.value))

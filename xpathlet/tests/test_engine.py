@@ -8,9 +8,9 @@ from xpathlet.engine import ExpressionEngine, build_xpath_tree
 TEST_XML = '\n'.join([
         '<?xml version="1.0"?>',
         '<carrot>',
-        '  <grandfather>',
+        '  <grandfather id="id1">',
         '    <aunt/>',
-        '    <mother>',
+        '    <mother id="baz">',
         '      <sister/>',
         '      <foo att1="bar" att2="baz">',
         '        <daughter datt="quux">',
@@ -202,6 +202,13 @@ class TestPredicates(XPathExpressionTestCase):
     def test_position_function(self):
         self.assert_names('../*[last()]', 'brother')
         self.assert_names('../*[string-length("12")]', 'foo')
+
+
+class TestFunctions(XPathExpressionTestCase):
+    def test_id(self):
+        self.assert_names('id("id1")', 'grandfather')
+        self.assert_names('id("baz id1")', 'grandfather', 'mother')
+        self.assert_names('id(//@att2)', 'mother')
 
 
 class TestExpressions(XPathExpressionTestCase):

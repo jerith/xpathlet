@@ -322,6 +322,9 @@ class FunctionLibrary(object):
 class XPathNode(object):
     node_type = None
 
+    def _build_node(self):
+        pass
+
     def string_value(self):
         raise NotImplementedError()
 
@@ -395,19 +398,23 @@ class XPathRootNode(XPathNode):
         self._document = document
         self._namespaces = namespaces
         self._children = None
-        # Unlazy this for now.
-        self.get_children()
-        self._tag_nodes()
+        self._xml_ids = {}
+        self._build_tree()
 
-    def _tag_nodes(self):
+    def _build_tree(self):
+        self._build_node()
         for i, node in enumerate(self._walk_in_doc_order()):
             node._doc_position = i
+            if isinstance(node, XPathElementNode) and node.xml_id is not None:
+                self._xml_ids.setdefault(node.xml_id, node)
 
-    def get_children(self):
+    def _build_node(self):
         # TODO: Build non-element children.
         if self._children is None:
             self._children = [XPathElementNode(self, self._document.getroot())]
-        return self._children
+
+    def get_children(self):
+        return self._children[:]
 
     def get_parents(self):
         return []
@@ -440,9 +447,24 @@ class XPathElementNode(XPathNode):
         self._children = None
         self._attributes = None
         self.xml_id = None
-        # Unlazy this for now.
-        self.get_attributes()
-        self.get_children()
+        self._build_node()
+
+    def _build_node(self):
+        self._attributes = []
+        for attr, value in self._enode.attrib.items():
+            self._attributes.append(XPathAttributeNode(self, attr, value))
+            # TODO: Choose an appropriate ID attribute based on the DTD?
+            if attr == 'id':
+                self.xml_id = value
+
+        # TODO: Build non-{element, text} children.
+        self._children = []
+        if self._enode.text is not None:
+            self._children.append(XPathTextNode(self, self._enode.text))
+        for enode in self._enode:
+            self._children.append(XPathElementNode(self, enode))
+            if enode.tail is not None:
+                self._children.append(XPathTextNode(self, enode.tail))
 
     def _walk_in_doc_order(self):
         yield self
@@ -455,22 +477,10 @@ class XPathElementNode(XPathNode):
                 yield node
 
     def get_children(self):
-        # TODO: Build non-{element, text} children.
-        if self._children is None:
-            self._children = []
-            if self._enode.text is not None:
-                self._children.append(XPathTextNode(self, self._enode.text))
-            for enode in self._enode:
-                self._children.append(XPathElementNode(self, enode))
-                if enode.tail is not None:
-                    self._children.append(XPathTextNode(self, enode.tail))
-        return self._children
+        return self._children[:]
 
     def get_attributes(self):
-        if self._attributes is None:
-            self._attributes = [XPathAttributeNode(self, k, v)
-                                for k, v in self._enode.attrib.items()]
-        return self._attributes
+        return self._attributes[:]
 
     def expanded_name(self):
         return (self.prefix, self.name)

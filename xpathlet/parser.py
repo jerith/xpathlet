@@ -163,7 +163,7 @@ def p_path_expr(p):
                 | FilterExpr DoubleSlash RelativeLocationPath
     """
     if len(p) > 2:
-        p[0] = ast.PathExpr(*p[1:])
+        p[0] = ast.PathExpr(p[1], ast.LocationPath(*p[2:]))
     else:
         p[0] = p[1]
 

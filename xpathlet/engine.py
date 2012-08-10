@@ -140,6 +140,7 @@ class ExpressionEngine(object):
         self.dp(' expr:', expr)
 
         eval_func = {
+            ast.PathExpr: self._eval_path_expr,
             ast.AbsoluteLocationPath: self._eval_location_path,
             ast.LocationPath: self._eval_location_path,
             ast.Step: self._eval_path_step,
@@ -158,11 +159,18 @@ class ExpressionEngine(object):
     def _bad_ast(self, context, expr):
         raise NotImplementedError('AST eval: %s' % (type(expr),))
 
+    def _eval_path_expr(self, context, expr):
+        nodes = set(self._eval_expr(context, expr.left).value)
+        return self._apply_location_path(context, expr.right, nodes)
+
     def _eval_location_path(self, context, expr):
         nodes = set([context.node])
         if expr.absolute:
             nodes = set([context.node.get_root()])
+        return self._apply_location_path(context, expr, nodes)
 
+    def _apply_location_path(self, context, expr, nodes):
+        assert isinstance(expr, ast.LocationPath)
         for step in expr.steps:
             assert isinstance(step, ast.Step)
             new_nodes = set()
@@ -215,7 +223,7 @@ class ExpressionEngine(object):
         result = self._eval_expr(context, predicate.expr)
         if isinstance(result, XPathNumber):
             return result.value == context.position
-        return result
+        return result.coerce('boolean').value
 
     def _eval_number(self, context, number):
         return XPathNumber(number.value)

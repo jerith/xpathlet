@@ -121,14 +121,15 @@ class AbsoluteLocationPath(LocationPath):
 
 
 class PathExpr(Node):
-    def __init__(self, *parts):
-        self.parts = [p for p in parts if p != '/']
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
 
     def __repr__(self):
-        return u"<PathExpr: %s>" % (self.parts,)
+        return u"<PathExpr: (%s, %s)>" % (self.left, self.right)
 
     def to_str(self):
-        return u''.join(_to_str(p) for p in self.parts)
+        return u'%s/%s' % (_to_str(self.left), _to_str(self.right))
 
 
 class FilterExpr(Node):
