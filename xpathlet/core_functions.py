@@ -51,7 +51,12 @@ class CoreFunctionLibrary(FunctionLibrary):
 
     @xpath_function('node-set?', rtype='string')
     def name(ctx, node_set=None):
-        # TODO: Implement
+        # TODO: Fix!
+        if node_set is None:
+            node_set = XPathNodeSet([ctx.node])
+
+        node = node_set.value[0]
+        return XPathString(node.name)
         raise NotImplementedError()
 
     # String Functions

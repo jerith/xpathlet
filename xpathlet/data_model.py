@@ -5,6 +5,7 @@
 
 import operator
 from itertools import dropwhile
+from xml.etree import ElementTree as ET
 
 
 # Stuff to work around ElementTree doing silly things.
@@ -373,19 +374,32 @@ class XPathNode(object):
         return nodeiter
 
     def get_preceeding(self, only_siblings=False):
+        # TODO: Find a better way.
         if only_siblings:
             # Get all siblings in reverse document order.
-            return self._after(reversed(list(self.parent.get_children())))
+            for sib in self._after(reversed(list(self.parent.get_children()))):
+                yield sib
+            return
 
         # Otherwise get all nodes in reverse document order.
-        return self._after(reversed(list(self.get_root().get_descendants())))
+        ancestors = set(self.get_ancestors())
+        nodeiter = self._after(
+            reversed(list(self.get_root().get_descendants())))
+        for node in nodeiter:
+            if node not in ancestors:
+                yield node
 
     def get_following(self, only_siblings=False):
+        # TODO: Find a better way.
         if only_siblings:
             # Get all siblings in document order.
             return self._after(self.parent.get_children())
         # Get all nodes in document order.
-        return self._after(self.get_root().get_descendants())
+        last_descendent = list(self.get_descendants())[-1]
+        nodeiter = dropwhile(lambda n: n is not last_descendent,
+                             self.get_root().get_descendants())
+        next(nodeiter)
+        return nodeiter
 
     def get_root(self):
         return self.parent.get_root()
@@ -429,12 +443,13 @@ class XPathRootNode(XPathNode):
         return ()
 
     def get_following(self, only_siblings=False):
-        if only_siblings:
-            return ()
-        return self.get_descendants()
+        return ()
 
     def get_root(self):
         return self
+
+    def to_et(self):
+        raise NotImplementedError()
 
 
 class XPathElementNode(XPathNode):
@@ -451,7 +466,8 @@ class XPathElementNode(XPathNode):
 
     def _build_node(self):
         self._attributes = []
-        for attr, value in self._enode.attrib.items():
+        # We sort attributes in lexicographic order for determinism.
+        for attr, value in sorted(self._enode.attrib.items()):
             self._attributes.append(XPathAttributeNode(self, attr, value))
             # TODO: Choose an appropriate ID attribute based on the DTD?
             if attr == 'id':
@@ -493,6 +509,29 @@ class XPathElementNode(XPathNode):
 
     def __repr__(self):
         return u'<XPathElementNode %s>' % (eqname(self.prefix, self.name),)
+
+    def to_et(self):
+        elem = ET.Element(eqname(self.prefix, self.name))
+        for attr in self.get_attributes():
+            elem.set(eqname(attr.prefix, attr.name), attr.value)
+
+        prior_elem = None
+        for node in self.get_children():
+            if node.node_type == 'text':
+                if prior_elem is None:
+                    elem.text = node.text
+                else:
+                    prior_elem.tail = node.text
+            elif node.node_type == 'element':
+                prior_elem = node.to_et()
+                elem.append(prior_elem)
+            else:
+                raise NotImplementedError()
+
+        return elem
+
+    def remove_child(self, child):
+        self._children.remove(child)
 
 
 class XPathAttributeNode(XPathNode):

@@ -124,20 +124,16 @@ class TestAxes(XPathExpressionTestCase):
         self.assert_count('ancestor::text()', 0)
 
     def test_select_preceeding(self):
-        self.assert_names('preceding::*',
-                          'sister', 'mother', 'aunt', 'grandfather', 'carrot')
-        self.assert_names('../preceding::*', 'aunt', 'grandfather', 'carrot')
+        self.assert_names('preceding::*', 'sister', 'aunt')
+        self.assert_names('../preceding::*', 'aunt')
         self.assert_names('/preceding::*')
-        self.assert_count('preceding::node()', text=5, element=5)
+        self.assert_count('preceding::node()', text=5, element=2)
 
     def test_select_following(self):
-        self.assert_names('following::*',
-                          'daughter', 'grandson', 'brother', 'uncle')
-        self.assert_names('../following::*', 'sister', 'foo',
-                          'daughter', 'grandson', 'brother', 'uncle')
-        self.assertEqual(self.eval_xpath('/following::*').value,
-                         self.eval_xpath('/descendant::*').value)
-        self.assert_count('following::node()', text=9, element=4)
+        self.assert_names('following::*', 'brother', 'uncle')
+        self.assert_names('../following::*', 'uncle')
+        self.assert_names('/following::*')
+        self.assert_count('following::node()', text=5, element=2)
 
     def test_select_preceeding_siblings(self):
         self.assert_names('preceding-sibling::*', 'sister')
@@ -186,18 +182,15 @@ class TestPredicates(XPathExpressionTestCase):
 
     def test_backward_postition(self):
         self.assert_names('preceding::*[1]', 'sister')
-        self.assert_names('preceding::*[2]', 'mother')
-        self.assert_names('preceding::*[3]', 'aunt')
+        self.assert_names('preceding::*[2]', 'aunt')
 
     def test_position_variable(self):
         self.engine.variables.update({
                 'one': XPathNumber(1.0),
                 'two': XPathNumber(2.0),
-                'three': XPathNumber(3.0),
                 })
         self.assert_names('preceding::*[$one]', 'sister')
-        self.assert_names('preceding::*[$two]', 'mother')
-        self.assert_names('preceding::*[$three]', 'aunt')
+        self.assert_names('preceding::*[$two]', 'aunt')
 
     def test_position_function(self):
         self.assert_names('../*[last()]', 'brother')
