@@ -16,7 +16,7 @@ At the moment, xpathlet consists of:
 * A definitely-incomplete expression engine that understands:
     * Basic location paths and node tests.
     * Positional predicate expressions.
-    * Comparison operators.
+    * Comparison and arithmetic operators.
     * Functions calls.
 
 * A definitely-incomplete core function library.
@@ -36,6 +36,16 @@ have "good enough" implementations. These might be fixed later.
 
 * Element IDs are assumed to be in the `id` attribute.
 
+Testing
+-------
+
+There aren't very many unit tests around the actual implementation (yet), but
+there is a test harness (`conformance.py`) to run the subset of the
+[OASIS XSLT test suite v0.4][3] (not included) that relates to XPath.
+
+The harness includes a half-hearted partial implementation of some of XSLT.
+This should not be considered an actual XSLT implementation.
+
 Why? WHY!?
 ----------
 
@@ -46,3 +56,4 @@ The expected benefits outweigh the pain for now, but that may not last forever.
 
 [1]: http://www.dabeaz.com/ply/
 [2]: http://www.w3.org/TR/xpath/
+[3]: https://www.oasis-open.org/committees/documents.php?wg_abbrev=xslt
