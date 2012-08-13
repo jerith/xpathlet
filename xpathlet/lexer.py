@@ -46,7 +46,7 @@ _ncname_chars = u''.join([
         u'\u203F-\u2040',
         ])
 
-_ncname = u'[%s][%s]+' % (_ncname_start_chars, _ncname_chars)
+_ncname = u'[%s][%s]*' % (_ncname_start_chars, _ncname_chars)
 
 
 t_ignore = ' \t\r\n'
@@ -89,8 +89,9 @@ def t_NCNAME(t):
 
 
 def t_error(t):
+    print t
     print " - Illegal character %r" % t.value[0]
-    t.lexer.skip(1)
+    # t.lexer.skip(1)
 
 
 lexer = lex.lex(reflags=re.UNICODE)

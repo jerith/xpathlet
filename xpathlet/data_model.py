@@ -175,6 +175,8 @@ class XPathNumber(XPathObject):
         return XPathString(val)
 
     def to_boolean(self):
+        if str(self.value) == str(float("nan")):
+            return XPathBoolean(False)
         return XPathBoolean(self.value != 0)
 
     def _xpath_cmp(self, other, operator):
@@ -308,7 +310,8 @@ class FunctionLibrary(object):
         # TODO: Something useful here?
         if return_type == 'object':
             return result
-        assert result.object_type == return_type
+        assert result.object_type == return_type, "%s != %s" % (
+            result.object_type, return_type)
         return result
 
     def __getitem__(self, name):
@@ -395,10 +398,11 @@ class XPathNode(object):
             # Get all siblings in document order.
             return self._after(self.parent.get_children())
         # Get all nodes in document order.
-        last_descendent = list(self.get_descendants())[-1]
-        nodeiter = dropwhile(lambda n: n is not last_descendent,
-                             self.get_root().get_descendants())
-        next(nodeiter)
+        nodeiter = self._after(self.get_root().get_descendants())
+        descendants = list(self.get_descendants())
+        if descendants:
+            nodeiter = dropwhile(lambda n: n is not descendants[-1], nodeiter)
+            next(nodeiter)
         return nodeiter
 
     def get_root(self):
@@ -553,6 +557,23 @@ class XPathAttributeNode(XPathNode):
         return u'<XPathAttributeNode %s=%r>' % (eqname(self.prefix, self.name),
                                                 self.value)
 
+    def _after(self, nodeiter):
+        # Drop all nodes until we find parent.
+        nodeiter = dropwhile(lambda n: n is not self.parent, nodeiter)
+        # Drop parent
+        nodeiter.next()
+        return nodeiter
+
+    def get_preceeding(self, only_siblings=False):
+        if only_siblings:
+            return ()
+        return XPathNode.get_preceeding(self)
+
+    def get_following(self, only_siblings=False):
+        if only_siblings:
+            return ()
+        return XPathNode.get_following(self)
+
 
 class XPathNamespaceNode(XPathNode):
     node_type = 'namespace'
@@ -567,6 +588,23 @@ class XPathNamespaceNode(XPathNode):
 
     def string_value(self):
         return self._uri
+
+    def _after(self, nodeiter):
+        # Drop all nodes until we find parent.
+        nodeiter = dropwhile(lambda n: n is not self.parent, nodeiter)
+        # Drop parent
+        nodeiter.next()
+        return nodeiter
+
+    def get_preceeding(self, only_siblings=False):
+        if only_siblings:
+            return ()
+        return XPathNode.get_preceeding(self)
+
+    def get_following(self, only_siblings=False):
+        if only_siblings:
+            return ()
+        return XPathNode.get_following(self)
 
 
 class XPathTextNode(XPathNode):

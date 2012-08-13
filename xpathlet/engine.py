@@ -1,5 +1,7 @@
 # -*- test-case-name: xpathlet.tests.test_engine -*-
 
+import operator
+
 from xpathlet import ast
 from xpathlet.parser import parser
 from xpathlet.data_model import (
@@ -141,6 +143,7 @@ class ExpressionEngine(object):
 
         eval_func = {
             ast.PathExpr: self._eval_path_expr,
+            ast.FilterExpr: self._eval_filter_expr,
             ast.AbsoluteLocationPath: self._eval_location_path,
             ast.LocationPath: self._eval_location_path,
             ast.Step: self._eval_path_step,
@@ -162,6 +165,18 @@ class ExpressionEngine(object):
     def _eval_path_expr(self, context, expr):
         nodes = set(self._eval_expr(context, expr.left).value)
         return self._apply_location_path(context, expr.right, nodes)
+
+    def _eval_filter_expr(self, context, filter_expr):
+        node_set = self._eval_expr(context, filter_expr.expr)
+        assert node_set.object_type == 'node-set'
+
+        nodes = [(i + 1, n) for i, n in enumerate(node_set.value)]
+
+        for predicate in filter_expr.predicates:
+            assert isinstance(predicate, ast.Predicate)
+            nodes = self._filter_predicate(context, predicate, nodes)
+
+        return XPathNodeSet([n for _i, n in nodes])
 
     def _eval_location_path(self, context, expr):
         nodes = set([context.node])
@@ -241,6 +256,9 @@ class ExpressionEngine(object):
         return core_funcs[function_call.name](context, *args)
 
     def _eval_operator_expression(self, context, operator_expr):
+        if operator_expr.op in ('and', 'or'):
+            return self._apply_boolean_op(context, operator_expr)
+
         left = self._eval_expr(context, operator_expr.left)
         right = self._eval_expr(context, operator_expr.right)
 
@@ -251,4 +269,36 @@ class ExpressionEngine(object):
         if operator_expr.op in set(['=', '!=', '<=', '<', '>=', '>']):
             return left.compare(right, operator_expr.op)
 
+        if operator_expr.op in set(['+', '-', '*', 'div', 'mod']):
+            return self._apply_numeric_op(operator_expr.op, left, right)
+
         raise NotImplementedError()
+
+    def _apply_boolean_op(self, context, operator_expr):
+        left = self._eval_expr(context, operator_expr.left).coerce('boolean')
+
+        if (operator_expr.op == 'and') and (not left.value):
+            return left
+        elif (operator_expr.op == 'or') and left.value:
+            return left
+
+        return self._eval_expr(context, operator_expr.right).coerce('boolean')
+
+    def _apply_numeric_op(self, op, left, right):
+        left = left.coerce('number').value
+        right = right.coerce('number').value
+        op_func = {
+            '+': operator.add,
+            '-': operator.sub,
+            '*': operator.mul,
+            'div': operator.div,
+            'mod': operator.mod,
+            }[op]
+        try:
+            return XPathNumber(op_func(left, right))
+        except ZeroDivisionError:
+            if left == 0:
+                return XPathNumber(float('nan'))
+            if left < 0:
+                return XPathNumber(float('-inf'))
+            return XPathNumber(float('inf'))

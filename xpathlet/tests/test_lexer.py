@@ -11,4 +11,8 @@ class TestLexer(TestCase):
         for tok in lexer:
             print tok
 
+        lexer.input(u"j[@l='12'] != j[@w='45']")
+        for tok in lexer:
+            print tok
+
         print "\n-----"

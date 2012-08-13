@@ -15,7 +15,7 @@ class CoreFunctionLibrary(FunctionLibrary):
 
     @xpath_function(rtype='number')
     def position(ctx):
-        return XPathBoolean(ctx.position)
+        return XPathNumber(ctx.position)
 
     @xpath_function('node-set', rtype='number')
     def count(ctx, node_set):
@@ -40,6 +40,9 @@ class CoreFunctionLibrary(FunctionLibrary):
         if node_set is None:
             return XPathString(ctx.node.name)
 
+        if node_set.value[0].expanded_name() is None:
+            return XPathString('')
+
         return XPathString(node_set.value[0].name)
 
     @xpath_function('node-set?', rtype='string')
@@ -54,6 +57,9 @@ class CoreFunctionLibrary(FunctionLibrary):
         # TODO: Fix!
         if node_set is None:
             node_set = XPathNodeSet([ctx.node])
+
+        if node_set.value[0].expanded_name() is None:
+            return XPathString('')
 
         node = node_set.value[0]
         return XPathString(node.name)

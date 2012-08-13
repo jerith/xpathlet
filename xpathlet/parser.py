@@ -215,7 +215,7 @@ def p_unary_expr(p):
                  | '-' UnaryExpr
     """
     if len(p) > 2:
-        p[0] = ast.UnaryExpr(p[1], p[2])
+        p[0] = ast.OperatorExpr(p[1], ast.Number('0'), p[2])
     else:
         p[0] = p[1]
 
@@ -238,6 +238,8 @@ def p_double_slash(p):
 def p_ncname(p):
     """NCName : NCNAME
               | NODETYPE
+              | OP_DIV
+              | OP_MOD
     """
     p[0] = p[1]
 

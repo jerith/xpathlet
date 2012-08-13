@@ -164,18 +164,6 @@ class OperatorExpr(Node):
         return u'%s %s %s' % (_to_str(self.left), self.op, _to_str(self.right))
 
 
-class UnaryExpr(Node):
-    def __init__(self, op, expr):
-        self.op = op
-        self.expr = expr
-
-    def __repr__(self):
-        return u"<UnaryExpr %s: %s>" % (self.op, self.parts)
-
-    def to_str(self):
-        return u'%s%s' % (self.op, self.expr.to_str())
-
-
 class VariableReference(Node):
     def __init__(self, name):
         self.name = name
