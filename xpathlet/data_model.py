@@ -3,6 +3,7 @@
 # NOTE: Sections of the XPath language specification are quoted in comments
 # below. The full document can be found at: http://www.w3.org/TR/xpath/
 
+import math
 import operator
 from itertools import dropwhile
 from xml.etree import ElementTree as ET
@@ -163,15 +164,18 @@ class XPathNumber(XPathObject):
     object_type = 'number'
 
     def to_string(self):
-        val = str(self.value)
-        if str(self.value) == str(float("nan")):
+        if math.isnan(self.value):
             val = "NaN"
-        elif str(self.value) == str(float("inf")):
-            val = "Infinity"
-        elif str(self.value) == str(float("-inf")):
-            val = "-Infinity"
+        elif math.isinf(self.value):
+            if self.value > 0:
+                val = "Infinity"
+            else:
+                val = "-Infinity"
         elif self.value == int(self.value):
             val = str(int(self.value))
+        else:
+            val = ("%.16g" % (self.value,)).rstrip('0')
+            # val = str(self.value)
         return XPathString(val)
 
     def to_boolean(self):
@@ -209,6 +213,9 @@ class XPathNumber(XPathObject):
 
 class XPathString(XPathObject):
     object_type = 'string'
+
+    def __init__(self, value):
+        self.value = value or ''
 
     def to_number(self):
         try:

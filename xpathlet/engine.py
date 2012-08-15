@@ -1,5 +1,6 @@
 # -*- test-case-name: xpathlet.tests.test_engine -*-
 
+import math
 import operator
 
 from xpathlet import ast
@@ -152,7 +153,8 @@ class ExpressionEngine(object):
             ast.StringLiteral: self._eval_string_literal,
             ast.VariableReference: self._eval_variable_reference,
             ast.FunctionCall: self._eval_function_call,
-            ast.OperatorExpr: self._eval_operator_expression,
+            ast.OperatorExpr: self._eval_operator_expr,
+            ast.UnaryExpr: self._eval_unary_expr,
             }.get(type(expr), self._bad_ast)
         result = eval_func(context, expr)
 
@@ -255,7 +257,7 @@ class ExpressionEngine(object):
         core_funcs = self.function_libraries[0]
         return core_funcs[function_call.name](context, *args)
 
-    def _eval_operator_expression(self, context, operator_expr):
+    def _eval_operator_expr(self, context, operator_expr):
         if operator_expr.op in ('and', 'or'):
             return self._apply_boolean_op(context, operator_expr)
 
@@ -292,13 +294,16 @@ class ExpressionEngine(object):
             '-': operator.sub,
             '*': operator.mul,
             'div': operator.div,
-            'mod': operator.mod,
+            'mod': math.fmod,
             }[op]
         try:
             return XPathNumber(op_func(left, right))
         except ZeroDivisionError:
             if left == 0:
                 return XPathNumber(float('nan'))
-            if left < 0:
-                return XPathNumber(float('-inf'))
-            return XPathNumber(float('inf'))
+            return XPathNumber(left * math.copysign(float('inf'), right))
+
+    def _eval_unary_expr(self, context, unary_expr):
+        assert unary_expr.op == '-'
+        val = self._eval_expr(context, unary_expr.expr).coerce('number')
+        return XPathNumber(operator.neg(val.value))

@@ -50,6 +50,9 @@ class CoreFunctionLibrary(FunctionLibrary):
         if node_set is None:
             return XPathString(ctx.node.prefix)
 
+        if not node_set.value:
+            return XPathString('')
+
         return XPathString(node_set.value[0].prefix)
 
     @xpath_function('node-set?', rtype='string')
@@ -115,8 +118,14 @@ class CoreFunctionLibrary(FunctionLibrary):
 
     @xpath_function('string', 'string', 'string', rtype='string')
     def translate(ctx, text, from_chars, to_chars):
-        # TODO: Implement
-        raise NotImplementedError()
+        text = text.value
+        from_chars = from_chars.value
+        to_chars = to_chars.value
+        for from_c, to_c in zip(from_chars, to_chars):
+            text = text.replace(from_c, to_c)
+        for del_c in from_chars[len(to_chars):]:
+            text = text.replace(del_c, '')
+        return XPathString(text)
 
     # Boolean Functions
 
@@ -137,9 +146,18 @@ class CoreFunctionLibrary(FunctionLibrary):
         return XPathBoolean(False)
 
     @xpath_function('string', rtype='boolean')
-    def lang(ctx, obj):
-        # TODO: Implement
-        raise NotImplementedError()
+    def lang(ctx, langstr):
+        langstr_bits = langstr.value.lower().split('-')
+        node = ctx.node
+        while node.node_type == 'element':
+            for attr in node.get_attributes():
+                if attr.expanded_name() == (
+                        'http://www.w3.org/XML/1998/namespace', 'lang'):
+                    lang_bits = attr.value.lower().split('-')
+                    return XPathBoolean(
+                        langstr_bits == lang_bits[:len(langstr_bits)])
+            node = node.parent
+        return XPathBoolean(False)
 
     # Number Functions
 
@@ -151,16 +169,18 @@ class CoreFunctionLibrary(FunctionLibrary):
 
     @xpath_function('node-set', rtype='number')
     def sum(ctx, node_set):
-        return XPathNumber(sum(n.to_number().value for n in node_set.value))
+        return XPathNumber(sum(
+                XPathString(n.string_value()).coerce('number').value
+                for n in node_set.value))
 
     @xpath_function('number', rtype='number')
     def floor(ctx, number):
         return XPathNumber(floor(number.value))
 
     @xpath_function('number', rtype='number')
-    def ceil(ctx, number):
+    def ceiling(ctx, number):
         return XPathNumber(ceil(number.value))
 
     @xpath_function('number', rtype='number')
     def round(ctx, number):
-        return XPathNumber(round(number.value))
+        return XPathNumber(floor(number.value + 0.5))

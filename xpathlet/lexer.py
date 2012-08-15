@@ -89,8 +89,7 @@ def t_NCNAME(t):
 
 
 def t_error(t):
-    print t
-    print " - Illegal character %r" % t.value[0]
+    print " - Illegal character: %s" % (t,)
     # t.lexer.skip(1)
 
 

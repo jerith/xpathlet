@@ -10,22 +10,48 @@ from xpathlet.engine import build_xpath_tree, ExpressionEngine
 STORED_DATA_FILE_TEMPL = 'test_data%s.json'
 
 SKIP_TESTS = (
+    # Very slow
+    'match_match12',
+    'match_match13',
+
     # Need XPath features
     'axes_axes62',  # namespace axis
-    'boolean_boolean08',  # lang()
-    'dflt_dflt02',  # translate()
-    'dflt_dflt03',  # translate()
-    'dflt_dflt04',  # translate()
-    'expression_expression01',  # lang()
-    'expression_expression03',  # lang()
-    'expression_expression04',  # lang()
-    'expression_expression05',  # lang()
-    'expression_expression06',  # lang()
+    'math_math111',  # correct float formatting
+    'namespace_namespace25',  # redefined namespaces
+    'namespace_namespace28',  # namespace axis
+    'namespace_namespace33',  # namespace axis
+    'namespace_namespace142',  # namespace axis
 
     # Unexplained Failures
     'attribset_attribset20',
     'axes_axes129',
     'axes_axes130',
+    'dflt_dflt02',
+    'dflt_dflt04',
+    'idkey_idkey09',
+    'idkey_idkey22',
+    'idkey_idkey55',
+    'idkey_idkey56',
+    'match_match01',
+    'mdocs_mdocs07',
+    'mdocs_mdocs09',
+    'mdocs_mdocs10',
+    'mdocs_mdocs12',
+    'mdocs_mdocs13',
+    'mdocs_mdocs17',
+    'namespace_namespace05',
+    'namespace_namespace21',
+    'namespace_namespace22',
+    'namespace_namespace25',
+    'namespace_namespace29',
+    'namespace_namespace30',
+    'namespace_namespace31',
+    'namespace_namespace32',
+    'namespace_namespace34',
+    'node_node15',
+    'node_node18',
+    'node_node20',
+    'node_node21',
 
     # Need XSLT features
     'axes_axes14',  # variables
@@ -37,16 +63,38 @@ SKIP_TESTS = (
     'boolean_boolean84',  # variables
     'boolean_boolean85',  # variables
     'boolean_boolean86',  # variables
+    'idkey_idkey58',  # variables
+    'math_math08',  # variables
+    'math_math17',  # variables
+    'math_math18',  # variables
+    'math_math84',  # variables
+    'math_math97',  # variables
+    'math_math98',  # variables
+    'math_math99',  # variables
+    'math_math100',  # variables
+    'math_math101',  # variables
+    'namespace_namespace14',  # variables
+    'namespace_namespace15',  # variables
+    'namespace_namespace16',  # variables
     'axes_axes68',  # element
     'axes_axes120',  # element
-    'axes_axes85',  # current()
-    'axes_axes86',  # current()
+    'namespace_namespace48',  # element
+    'namespace_namespace110',  # element
+    'node_node17',  # element
     'axes_axes109',  # param
     'axes_axes113',  # param
+    'node_node07',  # param
+    'impincl_impincl16',  # include
+    'impincl_impincl17',  # include
+    'axes_axes85',  # current()
+    'axes_axes86',  # current()
+    'copy_copy24',  # copy-of
+    'math_math103',  # copy-of
+    'copy_copy16',  # copy
     'axes_axes59',  # number
     'axes_axes131',  # attribute
-    'copy_copy16',  # copy
-    'copy_copy24',  # copy-of
+    'expression_expression03',  # if
+    'expression_expression06',  # if
 
     # Unsupported by ElementTree
     'axes_axes104',  # comment/PI nodes
@@ -59,6 +107,14 @@ SKIP_TESTS = (
     'axes_axes112',  # comment/PI nodes
     'axes_axes126',  # comment/PI nodes
     'axes_axes128',  # comment/PI nodes
+    'node_node02',  # comment/PI nodes
+    'node_node03',  # comment/PI nodes
+    'node_node09',  # comment/PI nodes
+    'node_node10',  # comment/PI nodes
+    'node_node11',  # comment/PI nodes
+    'node_node12',  # comment/PI nodes
+    'node_node13',  # comment/PI nodes
+    'node_node14',  # comment/PI nodes
     )
 
 
@@ -138,14 +194,17 @@ class ConformanceTestCase(object):
             os.path.join(self.catalog_path, self.filepath), xsls[0])
 
         try:
-            out = engine.process_file(datas[0])
+            out_parts = engine.process_file(datas[0])
+            out = ET.tostring(ET.fromstring(''.join(
+                        ET.tostring(a) if ET.iselement(a) else a
+                        for a in out_parts)))
         except:
             engine.dump_templates()
             raise
 
         ref_out = ET.parse(self.get_output(self.outputs[0])).getroot()
         expected = ET.tostring(ref_out)
-        actual = ET.tostring(out)
+        actual = ET.tostring(ET.fromstring(out))
 
         if expected == actual:
             print "[OK]", self.name
@@ -226,16 +285,12 @@ class HackyMinimalXSLTEngine(object):
         print "===== %s =====" % ('=' * len(self.xsl))
 
     def process_file(self, path):
-        self.data_tree = self._get_stripped(open(self._path(path)))
-        # v???v
+        self.data_tree = build_xpath_tree(open(self._path(path)))
+        # TODO: Should we be replacing namespaces here?
         self.data_tree._namespaces = self.xsl_tree._namespaces
-        # ^???^
         self.data_engine = ExpressionEngine(self.data_tree)
-        self.out_nodes = []
 
-        results = self.apply_templates(self.data_tree)
-        assert len(results) == 1
-        return results[0]
+        return self.apply_templates(self.data_tree)
 
     def find_template(self, node):
         matches = [t for t in self.templates if t.match(node)]
@@ -248,16 +303,10 @@ class HackyMinimalXSLTEngine(object):
         assert len(matches) == 1
         return matches[0]
 
-    def apply_templates(self, node, result_elem=None):
+    def apply_templates(self, node):
         template = self.find_template(node)
 
-        result = template.apply(node)
-        if result_elem is None:
-            self.out_nodes.append(result)
-        else:
-            result_elem.append(result)
-
-        return result
+        return template.apply(node)
 
 
 class HackyMinimalXSLTTemplate(object):
@@ -290,6 +339,7 @@ class HackyMinimalXSLTTemplate(object):
         return self._apply_children(self.template_node, node)
 
     def apply_node(self, templ_node, node):
+
         if templ_node.node_type == 'text':
             return [templ_node.text]
 
@@ -318,7 +368,9 @@ class HackyMinimalXSLTTemplate(object):
 
     def _apply_literal(self, templ_node, node):
         elem = ET.Element(templ_node.name)
-        # TODO: attrs?
+        for attr in templ_node.get_attributes():
+            # TODO: better attrs?
+            elem.set(attr.name, attr.value)
 
         for result in self._apply_children(templ_node, node):
             if ET.iselement(result):
