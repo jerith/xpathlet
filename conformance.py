@@ -52,6 +52,10 @@ SKIP_TESTS = (
     'position_position99',
     'position_position100',
     'position_position101',
+    'predicate_predicate38',
+    'select_select05',
+    'select_select75',
+    'select_select82',
 
     # Need XSLT features
     # key()
@@ -77,6 +81,8 @@ SKIP_TESTS = (
     'namespace_namespace05',
     'namespace_namespace14',
     'position_position97',
+    'select_select03',
+    'select_select71',
     # if
     'expression_expression03',
     'expression_expression06',
@@ -85,6 +91,8 @@ SKIP_TESTS = (
     'position_position68',
     'position_position78',
     'position_position106',
+    'predicate_predicate37',
+    'predicate_predicate57',
     # param
     'axes_axes109',
     'axes_axes113',
@@ -106,14 +114,18 @@ SKIP_TESTS = (
     # sort
     'position_position10',
     'position_position69',
+    'select_select69',
     # copy
     'copy_copy16',
     'position_position86',
+    # document
+    'mdocs_mdocs17',
+    'select_select67',
+    'select_select68',
     # others
     'axes_axes59',  # number
     'boolean_boolean43',  # better result trees?
     'dflt_dflt04',  # modes
-    'mdocs_mdocs17',  # document()
 
     # Unsupported by ElementTree
     'axes_axes104',  # comment/PI nodes

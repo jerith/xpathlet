@@ -76,7 +76,7 @@ class CoreFunctionLibrary(FunctionLibrary):
         return obj.coerce('string')
 
     @xpath_function('string', 'string', 'string*', rtype='string')
-    def concat(ctx, strings):
+    def concat(ctx, *strings):
         return XPathString(u''.join(s.value for s in strings))
 
     @xpath_function('string', 'string', rtype='boolean')
