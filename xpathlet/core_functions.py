@@ -1,4 +1,4 @@
-from math import floor, ceil
+from math import floor, ceil, isnan
 
 from xpathlet.constants import XML_NAMESPACE
 from xpathlet.data_model import (
@@ -97,10 +97,16 @@ class CoreFunctionLibrary(FunctionLibrary):
 
     @xpath_function('string', 'number', 'number?', rtype='string')
     def substring(ctx, haystack, start, length=None):
-        start = max(1, int(round(start.value))) - 1
+        start_f = round(start.value)
+        if isnan(start_f):
+            return XPathString('')
         end = len(haystack.value)
         if length is not None:
-            end = start + int(round(length.value))
+            end_f = round(length.value) + start_f
+            if isnan(end_f):
+                return XPathString('')
+            end = int(min(end_f - 1, end))
+        start = int(max(1, round(start.value))) - 1
         return XPathString(haystack.value[start:end])
 
     @xpath_function('string?', rtype='number')
