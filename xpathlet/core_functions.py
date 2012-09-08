@@ -81,7 +81,7 @@ class CoreFunctionLibrary(FunctionLibrary):
 
     @xpath_function('string', 'string', rtype='boolean')
     def starts_with(ctx, haystack, needle):
-        return XPathBoolean(haystack.value.starts_with(needle.value))
+        return XPathBoolean(haystack.value.startswith(needle.value))
 
     @xpath_function('string', 'string', rtype='boolean')
     def contains(ctx, haystack, needle):
