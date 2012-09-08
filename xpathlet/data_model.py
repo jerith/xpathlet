@@ -96,7 +96,7 @@ class XPathNodeSet(XPathObject):
         # converting the node-set to a boolean using the boolean function is
         # true.
         if other.object_type == 'boolean':
-            return self.to_boolean._xpath_cmp(other, operator)
+            return self.coerce('boolean')._xpath_cmp(other, operator)
 
         # The rest of these iterate over nodes until a successful comparison is
         # found.

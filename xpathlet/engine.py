@@ -5,6 +5,7 @@ import operator
 
 from xpathlet import ast
 from xpathlet.parser import parser
+from xpathlet.constants import XML_NAMESPACE
 from xpathlet.data_model import (
     XPathRootNode, XPathNodeSet, XPathNumber, XPathString)
 from xpathlet.core_functions import CoreFunctionLibrary
@@ -89,7 +90,7 @@ class Context(object):
         self.size = size
         self.variables = variables
         self.functions = functions
-        self.namespaces = namespaces
+        self.namespaces = dict({'xml': XML_NAMESPACE}, **namespaces)
 
     def sub_context(self, node=None, position=None, size=None):
         if node is None:
@@ -109,7 +110,7 @@ class Context(object):
         return (uri, name)
 
     def __repr__(self):
-        return u'<Context %r>' % (self.node,)
+        return u'<Context %r, %s/%s>' % (self.node, self.position, self.size)
 
 
 class ExpressionEngine(object):
@@ -128,10 +129,12 @@ class ExpressionEngine(object):
         if self.debug:
             print u' '.join(str(a) for a in args)
 
-    def evaluate(self, xpath_expr, context_node=None):
+    def evaluate(self, xpath_expr, context_node=None, variables=None):
         if context_node is None:
             context_node = self.root_node
-        context = Context(context_node, 0, 0, self.variables.copy(), {},
+        if variables is None:
+            variables = self.variables
+        context = Context(context_node, 1, 1, variables.copy(), {},
                           self.root_node._namespaces)
         expr = parser.parse(xpath_expr)
         return self._eval_expr(context, expr)
@@ -173,11 +176,7 @@ class ExpressionEngine(object):
         assert node_set.object_type == 'node-set'
 
         nodes = [(i + 1, n) for i, n in enumerate(node_set.value)]
-
-        for predicate in filter_expr.predicates:
-            assert isinstance(predicate, ast.Predicate)
-            nodes = self._filter_predicate(context, predicate, nodes)
-
+        nodes = self._filter_predicates(context, filter_expr.predicates, nodes)
         return XPathNodeSet([n for _i, n in nodes])
 
     def _eval_location_path(self, context, expr):
@@ -201,17 +200,14 @@ class ExpressionEngine(object):
     def _eval_path_step(self, context, step):
         axis = Axis(step.axis)
 
-        nodes = set()
+        nodes = []
         i = 1
         for node in axis.select_nodes(context):
             if self._test_node(context, step.node_test, axis, node):
-                nodes.add((i, node))
+                nodes.append((i, node))
                 i += 1
 
-        for predicate in step.predicates:
-            assert isinstance(predicate, ast.Predicate)
-            nodes = self._filter_predicate(context, predicate, nodes)
-
+        nodes = self._filter_predicates(context, step.predicates, nodes)
         return [node for _i, node in nodes]
 
     def _test_node(self, context, test_expr, axis, node):
@@ -227,13 +223,19 @@ class ExpressionEngine(object):
 
         assert False
 
+    def _filter_predicates(self, context, predicates, nodes):
+        for predicate in predicates:
+            assert isinstance(predicate, ast.Predicate)
+            new_nodes = self._filter_predicate(context, predicate, nodes)
+            nodes = [(i + 1, n[1]) for i, n in enumerate(sorted(new_nodes))]
+        return nodes
+
     def _filter_predicate(self, context, predicate, nodes):
+        ctx = context.sub_context(size=len(nodes))
         new_nodes = []
         for i, node in nodes:
-            ctx = context.sub_context(node, i, len(nodes))
-            if self._eval_expr(ctx, predicate):
+            if self._eval_expr(ctx.sub_context(node, position=i), predicate):
                 new_nodes.append((i, node))
-
         return new_nodes
 
     def _eval_predicate(self, context, predicate):

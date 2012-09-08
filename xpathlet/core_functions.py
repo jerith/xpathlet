@@ -1,5 +1,6 @@
 from math import floor, ceil
 
+from xpathlet.constants import XML_NAMESPACE
 from xpathlet.data_model import (
     XPathNodeSet, XPathBoolean, XPathNumber, XPathString,
     FunctionLibrary, xpath_function)
@@ -15,6 +16,7 @@ class CoreFunctionLibrary(FunctionLibrary):
 
     @xpath_function(rtype='number')
     def position(ctx):
+        print ctx.position
         return XPathNumber(ctx.position)
 
     @xpath_function('node-set', rtype='number')
@@ -38,9 +40,9 @@ class CoreFunctionLibrary(FunctionLibrary):
     @xpath_function('node-set?', rtype='string')
     def local_name(ctx, node_set=None):
         if node_set is None:
-            return XPathString(ctx.node.name)
+            node_set = XPathNodeSet([ctx.node])
 
-        if node_set.value[0].expanded_name() is None:
+        if (not node_set.value) or (node_set.value[0].expanded_name() is None):
             return XPathString('')
 
         return XPathString(node_set.value[0].name)
@@ -48,25 +50,23 @@ class CoreFunctionLibrary(FunctionLibrary):
     @xpath_function('node-set?', rtype='string')
     def namespace_uri(ctx, node_set=None):
         if node_set is None:
-            return XPathString(ctx.node.prefix)
+            node_set = XPathNodeSet([ctx.node])
 
-        if not node_set.value:
+        if (not node_set.value) or (node_set.value[0].expanded_name() is None):
             return XPathString('')
 
         return XPathString(node_set.value[0].prefix)
 
     @xpath_function('node-set?', rtype='string')
     def name(ctx, node_set=None):
-        # TODO: Fix!
+        # TODO: fix
         if node_set is None:
             node_set = XPathNodeSet([ctx.node])
 
-        if node_set.value[0].expanded_name() is None:
+        if (not node_set.value) or (node_set.value[0].expanded_name() is None):
             return XPathString('')
 
-        node = node_set.value[0]
-        return XPathString(node.name)
-        raise NotImplementedError()
+        return XPathString(node_set.value[0].name)
 
     # String Functions
 
@@ -151,8 +151,7 @@ class CoreFunctionLibrary(FunctionLibrary):
         node = ctx.node
         while node.node_type == 'element':
             for attr in node.get_attributes():
-                if attr.expanded_name() == (
-                        'http://www.w3.org/XML/1998/namespace', 'lang'):
+                if attr.expanded_name() == (XML_NAMESPACE, 'lang'):
                     lang_bits = attr.value.lower().split('-')
                     return XPathBoolean(
                         langstr_bits == lang_bits[:len(langstr_bits)])

@@ -5,6 +5,8 @@ from StringIO import StringIO
 from xml.etree import ElementTree as ET
 
 from xpathlet.engine import build_xpath_tree, ExpressionEngine
+from xpathlet.data_model import (
+    XPathRootNode, XPathTextNode, XPathElementNode, XPathNodeSet)
 
 
 STORED_DATA_FILE_TEMPL = 'test_data%s.json'
@@ -15,86 +17,78 @@ SKIP_TESTS = (
     'match_match13',
 
     # Need XPath features
-    'axes_axes62',  # namespace axis
+    # namespace axis
+    'axes_axes62',
+    'axes_axes68',
+    'axes_axes120',
+    'axes_axes129',
+    'namespace_namespace28',
+    'namespace_namespace32',
+    'namespace_namespace33',
+    'namespace_namespace34',
+    'namespace_namespace142',
+    'node_node17',
+    # other
     'math_math111',  # correct float formatting
     'namespace_namespace25',  # redefined namespaces
-    'namespace_namespace28',  # namespace axis
-    'namespace_namespace33',  # namespace axis
-    'namespace_namespace142',  # namespace axis
 
     # Unexplained Failures
-    'attribset_attribset20',
-    'axes_axes129',
-    'axes_axes130',
     'dflt_dflt02',
-    'dflt_dflt04',
-    'idkey_idkey09',
-    'idkey_idkey22',
     'idkey_idkey55',
     'idkey_idkey56',
-    'match_match01',
-    'mdocs_mdocs07',
-    'mdocs_mdocs09',
-    'mdocs_mdocs10',
-    'mdocs_mdocs12',
-    'mdocs_mdocs13',
-    'mdocs_mdocs17',
-    'namespace_namespace05',
+
     'namespace_namespace21',
     'namespace_namespace22',
-    'namespace_namespace25',
     'namespace_namespace29',
     'namespace_namespace30',
-    'namespace_namespace31',
-    'namespace_namespace32',
-    'namespace_namespace34',
+    'namespace_namespace48',
+    'namespace_namespace110',
+
     'node_node15',
     'node_node18',
     'node_node20',
     'node_node21',
+    'output_output70',
+    'position_position01',
+    'position_position04',
 
     # Need XSLT features
-    'axes_axes14',  # variables
-    'axes_axes15',  # variables
-    'boolean_boolean42',  # variables
-    'boolean_boolean43',  # variables
-    'boolean_boolean58',  # variables
-    'boolean_boolean59',  # variables
-    'boolean_boolean84',  # variables
-    'boolean_boolean85',  # variables
-    'boolean_boolean86',  # variables
-    'idkey_idkey58',  # variables
-    'math_math08',  # variables
-    'math_math17',  # variables
-    'math_math18',  # variables
-    'math_math84',  # variables
-    'math_math97',  # variables
-    'math_math98',  # variables
-    'math_math99',  # variables
-    'math_math100',  # variables
-    'math_math101',  # variables
-    'namespace_namespace14',  # variables
-    'namespace_namespace15',  # variables
-    'namespace_namespace16',  # variables
-    'axes_axes68',  # element
-    'axes_axes120',  # element
-    'namespace_namespace48',  # element
-    'namespace_namespace110',  # element
-    'node_node17',  # element
-    'axes_axes109',  # param
-    'axes_axes113',  # param
-    'node_node07',  # param
-    'impincl_impincl16',  # include
-    'impincl_impincl17',  # include
-    'axes_axes85',  # current()
-    'axes_axes86',  # current()
-    'copy_copy24',  # copy-of
-    'math_math103',  # copy-of
-    'copy_copy16',  # copy
+    # param
+    'axes_axes109',
+    'axes_axes113',
+    'namespace_namespace15',
+    'namespace_namespace16',
+    'node_node07',
+    # if
+    'expression_expression03',
+    'expression_expression06',
+    'position_position11',
+    # copy-of
+    'copy_copy24',
+    'math_math84',
+    'math_math103',
+    'mdocs_mdocs07',
+    'mdocs_mdocs09',
+    'mdocs_mdocs10',
+    'namespace_namespace05',
+    'namespace_namespace14',
+    # import/include
+    'impincl_impincl16',
+    'impincl_impincl17',
+    'mdocs_mdocs12',
+    'mdocs_mdocs13',
+    # current()
+    'axes_axes85',
+    'axes_axes86',
+    # others
     'axes_axes59',  # number
     'axes_axes131',  # attribute
-    'expression_expression03',  # if
-    'expression_expression06',  # if
+    'boolean_boolean43',  # better result trees?
+    'copy_copy16',  # copy
+    'dflt_dflt04',  # modes
+    'mdocs_mdocs17',  # document()
+    'position_position05',  # key()
+    'position_position10',  # sort
 
     # Unsupported by ElementTree
     'axes_axes104',  # comment/PI nodes
@@ -107,6 +101,7 @@ SKIP_TESTS = (
     'axes_axes112',  # comment/PI nodes
     'axes_axes126',  # comment/PI nodes
     'axes_axes128',  # comment/PI nodes
+    'idkey_idkey09',  # DTD stuff
     'node_node02',  # comment/PI nodes
     'node_node03',  # comment/PI nodes
     'node_node09',  # comment/PI nodes
@@ -239,6 +234,7 @@ class HackyMinimalXSLTEngine(object):
     def __init__(self, base_path, xsl):
         self.base_path = base_path
         self.xsl = xsl
+        self._variables = {}
 
         self.xsl_tree = self._get_stripped(open(self._path(self.xsl)))
         self.xsl_engine = ExpressionEngine(self.xsl_tree)
@@ -253,6 +249,11 @@ class HackyMinimalXSLTEngine(object):
             for n in dt_engine.evaluate('//xsl:template').value]
 
     def xev(self, expr, node=None):
+        ns_prefix = 'xsl'
+        for prefix, val in self.xsl_tree._namespaces.items():
+            if val == XSL_NAMESPACE:
+                ns_prefix = prefix
+        expr = expr.replace('xsl:', '%s:' % (ns_prefix))
         return self.xsl_engine.evaluate(expr, node).value
 
     def _get_stripped(self, xsl_file):
@@ -263,20 +264,21 @@ class HackyMinimalXSLTEngine(object):
     def _path(self, path):
         return os.path.join(self.base_path, path)
 
-    def _strip_whitespace(self, node, space='default'):
+    def _strip_whitespace(self, node, space='default', to_strip=None):
         for child in node.get_children():
             if child.node_type == 'text':
+                if to_strip is not None and child.parent.name not in to_strip:
+                    continue
                 if space == 'default' and child.text.strip() == '':
                     node.remove_child(child)
             elif child.node_type == 'element':
-                # TODO: Unstrip xsl:text elements?
                 if child.expanded_name() == (XSL_NAMESPACE, 'text'):
                     continue
                 cspace = space
                 for attr in child.get_attributes():
                     if attr.name == 'space':
                         cspace = attr.value
-                self._strip_whitespace(child, cspace)
+                self._strip_whitespace(child, cspace, to_strip=to_strip)
 
     def dump_templates(self):
         print "\n===== %s =====" % self.xsl
@@ -290,7 +292,26 @@ class HackyMinimalXSLTEngine(object):
         self.data_tree._namespaces = self.xsl_tree._namespaces
         self.data_engine = ExpressionEngine(self.data_tree)
 
-        return self.apply_templates(self.data_tree)
+        self.output_indent = False
+        if self.xev('string(/xsl:stylesheet/xsl:output/@indent)') == 'yes':
+            self.output_indent = True
+
+        for node in self.xev('/xsl:stylesheet/xsl:variable'):
+            HackyMinimalXSLTTemplate(self, node).apply_node(node, None)
+
+        for node in self.xev('/xsl:stylesheet/xsl:param'):
+            HackyMinimalXSLTTemplate(self, node).apply_node(node, None)
+
+        for node in self.xev('/xsl:stylesheet/xsl:strip-space'):
+            elems = self.xev('string(@elements)', node).split()
+            self._strip_whitespace(self.data_tree, to_strip=elems)
+
+        results = self.apply_templates(self.data_tree)
+        if self.output_indent:
+            for node in results:
+                if ET.iselement(node) and len(node) > 0:
+                    _add_text_child(node, '\n')
+        return results
 
     def find_template(self, node):
         matches = [t for t in self.templates if t.match(node)]
@@ -304,9 +325,24 @@ class HackyMinimalXSLTEngine(object):
         return matches[0]
 
     def apply_templates(self, node):
-        template = self.find_template(node)
+        return self.find_template(node).apply(node)
 
-        return template.apply(node)
+    def set_variable(self, name, value):
+        self._variables.setdefault(name, []).append(value)
+
+    def unset_variable(self, name):
+        self._variables[name][-1:] = []
+
+    def get_variables(self):
+        return dict((k, v[-1]) for k, v in self._variables.items() if v)
+
+
+def _add_text_child(elem, text):
+    children = list(elem)
+    if not children:
+        elem.text = "%s%s" % ((elem.text or ''), text)
+    else:
+        children[-1].tail = "%s%s" % ((children[-1].tail or ''), text)
 
 
 class HackyMinimalXSLTTemplate(object):
@@ -317,12 +353,19 @@ class HackyMinimalXSLTTemplate(object):
         self.name = self.engine.xev('string(@name)', template_node)
 
         # :-(
-        self.priority = 0
-        if '/' in self.pattern:
-            self.priority = 0.5
+        self.priority = 0.5
+        if '/' not in self.pattern and '[' not in self.pattern:
+            rpat = self.pattern.split('::')[-1]
+            if rpat.endswith(':*'):
+                self.priority = -0.25
+            elif rpat.endswith('()'):
+                self.priority = -0.5
+            elif '(' not in rpat and '[' not in rpat:
+                self.priority = 0
 
     def find(self, expr, cnode):
-        return self.engine.data_engine.evaluate(expr, cnode).value
+        return self.engine.data_engine.evaluate(
+            expr, cnode, self.engine.get_variables()).value
 
     def match(self, node):
         if not self.pattern:
@@ -353,12 +396,27 @@ class HackyMinimalXSLTTemplate(object):
             'call-template': self._apply_call_template,
             'for-each': self._apply_for_each,
             'value-of': self._apply_value_of,
+            'variable': self._apply_variable,
+            'element': self._apply_element,
             'choose': self._apply_choose,
+            'param': self._apply_variable,
             'text': self._apply_text,
             }.get(templ_node.name, self._apply_bad)(templ_node, node)
 
     def _apply_bad(self, templ_node, node):
         raise NotImplementedError(templ_node.name)
+
+    def _eval_avt(self, expr, node):
+        import re
+        expr_re = re.compile(r'((?:{{|[^{]+)*)({.*?})?')
+        parts = []
+        while expr:
+            match = expr_re.match(expr)
+            parts.append(match.group(1))
+            if match.group(2):
+                parts.append(self.find('string(%s)' % match.group(2)[1:-1], node))
+            expr = expr[match.end():]
+        return ''.join(parts)
 
     def _apply_children(self, templ_node, node):
         results = []
@@ -369,20 +427,19 @@ class HackyMinimalXSLTTemplate(object):
     def _apply_literal(self, templ_node, node):
         elem = ET.Element(templ_node.name)
         for attr in templ_node.get_attributes():
-            # TODO: better attrs?
-            elem.set(attr.name, attr.value)
+            elem.set(attr.name, self._eval_avt(attr.value, node))
 
+        return self._populate_element(elem, templ_node, node)
+
+    def _populate_element(self, elem, templ_node, node):
         for result in self._apply_children(templ_node, node):
             if ET.iselement(result):
+                if self.engine.output_indent:
+                    _add_text_child(elem, '\n')
                 elem.append(result)
                 continue
 
-            children = list(elem)
-            if not children:
-                elem.text = "%s%s" % ((elem.text or ''), result)
-            else:
-                children[-1].tail = "%s%s" % ((children[-1].text or ''),
-                                               result)
+            _add_text_child(elem, result)
 
         return [elem]
 
@@ -439,6 +496,24 @@ class HackyMinimalXSLTTemplate(object):
             if template.name == name:
                 return template.apply(node)
 
+    def _apply_variable(self, templ_node, node):
+        name = self.engine.xev('string(@name)', templ_node)
+        select = self.engine.xev('string(@select)', templ_node)
+        if select:
+            value = self.engine.data_engine.evaluate(select, node)
+        else:
+            value = XPathNodeSet([
+                    ResultTreeFragment(self._apply_children(templ_node, node),
+                                       self.engine.data_tree._namespaces)])
+        self.engine.set_variable(name, value)
+        return []
+
+    def _apply_element(self, templ_node, node):
+        name = self._eval_avt(self.engine.xev('string(@name)', templ_node), node)
+        elem = ET.Element(name)
+
+        return self._populate_element(elem, templ_node, node)
+
     def dump(self):
         ET.dump(self.template_node.to_et())
 
@@ -446,8 +521,28 @@ class HackyMinimalXSLTTemplate(object):
         ET.dump(self.template_node._enode)
 
 
+class ResultTreeFragment(XPathRootNode):
+    def _build_tree(self):
+        self._children = []
+        text = ''
+        for thing in self._document:
+            if ET.iselement(thing):
+                if text:
+                    self._children.append(XPathTextNode(self, text))
+                    text = (enode.tail or '')
+                self._children.append(XPathElementNode(self, thing))
+            else:
+                text += thing
+        if text:
+            self._children.append(XPathTextNode(self, text))
+        for i, node in enumerate(self._walk_in_doc_order()):
+            node._doc_position = i
+            if isinstance(node, XPathElementNode) and node.xml_id is not None:
+                self._xml_ids.setdefault(node.xml_id, node)
+
+
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 3):
         print "usage:\n  %s <path-to-XSLT-conformance-tests>" % (sys.argv[0],)
         print ""
         print "Run XPath subset of XSLT conformance test suite over xpathlet."
@@ -458,8 +553,17 @@ if __name__ == '__main__':
         print ""
         exit(1)
 
+    test_prefix = None
+    if len(sys.argv) > 2:
+        test_prefix = sys.argv[2]
     errors = []
     for tc in list(ConformanceTestCatalog(sys.argv[1]).find_tests()):
+        if test_prefix:
+            if '_' in test_prefix:
+                if test_prefix != tc.name:
+                    continue
+            elif test_prefix != tc.name.split('_')[0]:
+                continue
         try:
             tc.process()
         except Exception, e:
