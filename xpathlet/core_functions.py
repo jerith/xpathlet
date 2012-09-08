@@ -98,10 +98,10 @@ class CoreFunctionLibrary(FunctionLibrary):
     @xpath_function('string', 'number', 'number?', rtype='string')
     def substring(ctx, haystack, start, length=None):
         start = max(1, int(round(start.value))) - 1
-        end = len(haystack)
+        end = len(haystack.value)
         if length is not None:
-            end = start + int(round(length))
-        return XPathString(haystack[start:end])
+            end = start + int(round(length.value))
+        return XPathString(haystack.value[start:end])
 
     @xpath_function('string?', rtype='number')
     def string_length(ctx, text=None):

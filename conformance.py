@@ -126,6 +126,7 @@ SKIP_TESTS = (
     'axes_axes59',  # number
     'boolean_boolean43',  # better result trees?
     'dflt_dflt04',  # modes
+    'string_string13',  # format-number()
 
     # Unsupported by ElementTree
     'axes_axes104',  # comment/PI nodes
