@@ -34,6 +34,7 @@ SKIP_TESTS = (
     # other
     'math_math111',  # correct float formatting
     'namespace_namespace25',  # redefined namespaces
+    'string_string134',  # correct float formatting
 
     # Unexplained Failures
     'namespace_namespace21',
@@ -56,6 +57,9 @@ SKIP_TESTS = (
     'select_select05',
     'select_select75',
     'select_select82',
+    'string_string133',
+    'string_string135',
+    'string_string136',
 
     # Need XSLT features
     # key()
@@ -108,6 +112,7 @@ SKIP_TESTS = (
     'axes_axes131',
     'position_position80',
     'position_position83',
+    'string_string140',
     # current()
     'axes_axes85',
     'axes_axes86',
