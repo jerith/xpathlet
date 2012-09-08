@@ -129,13 +129,14 @@ class ExpressionEngine(object):
         if self.debug:
             print u' '.join(str(a) for a in args)
 
-    def evaluate(self, xpath_expr, context_node=None, variables=None):
+    def evaluate(self, xpath_expr, context_node=None, variables=None,
+                 context_position=1, context_size=1):
         if context_node is None:
             context_node = self.root_node
         if variables is None:
             variables = self.variables
-        context = Context(context_node, 1, 1, variables.copy(), {},
-                          self.root_node._namespaces)
+        context = Context(context_node, context_position, context_size,
+                          variables.copy(), {}, self.root_node._namespaces)
         expr = parser.parse(xpath_expr)
         return self._eval_expr(context, expr)
 

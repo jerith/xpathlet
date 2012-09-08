@@ -16,7 +16,6 @@ class CoreFunctionLibrary(FunctionLibrary):
 
     @xpath_function(rtype='number')
     def position(ctx):
-        print ctx.position
         return XPathNumber(ctx.position)
 
     @xpath_function('node-set', rtype='number')
