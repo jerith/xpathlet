@@ -37,16 +37,10 @@ SKIP_TESTS = (
     'string_string134',  # correct float formatting
 
     # Unexplained Failures
-    'namespace_namespace21',
-    'namespace_namespace22',
     'namespace_namespace29',
     'namespace_namespace30',
     'namespace_namespace48',
     'namespace_namespace110',
-    'node_node15',
-    'node_node18',
-    'node_node20',
-    'node_node21',
     'output_output70',
     'position_position93',
     'position_position98',
@@ -127,34 +121,41 @@ SKIP_TESTS = (
     'mdocs_mdocs17',
     'select_select67',
     'select_select68',
+    # modes
+    'dflt_dflt04',
+    'node_node20',
+    'node_node21',
     # others
     'axes_axes59',  # number
     'boolean_boolean43',  # better result trees?
-    'dflt_dflt04',  # modes
     'string_string13',  # format-number()
 
     # Unsupported by ElementTree
-    'axes_axes104',  # comment/PI nodes
-    'axes_axes105',  # comment/PI nodes
-    'axes_axes106',  # comment/PI nodes
-    'axes_axes107',  # comment/PI nodes
-    'axes_axes108',  # comment/PI nodes
-    'axes_axes110',  # comment/PI nodes
-    'axes_axes111',  # comment/PI nodes
-    'axes_axes112',  # comment/PI nodes
-    'axes_axes126',  # comment/PI nodes
-    'axes_axes128',  # comment/PI nodes
+    # comment/PI nodes
+    'axes_axes104',
+    'axes_axes105',
+    'axes_axes106',
+    'axes_axes107',
+    'axes_axes108',
+    'axes_axes110',
+    'axes_axes111',
+    'axes_axes112',
+    'axes_axes126',
+    'axes_axes128',
+    'node_node02',
+    'node_node03',
+    'node_node09',
+    'node_node10',
+    'node_node11',
+    'node_node12',
+    'node_node13',
+    'node_node14',
+    'node_node15',
+    'node_node18',
+    'position_position71',
+    'position_position75',
+    # others
     'idkey_idkey09',  # DTD stuff
-    'node_node02',  # comment/PI nodes
-    'node_node03',  # comment/PI nodes
-    'node_node09',  # comment/PI nodes
-    'node_node10',  # comment/PI nodes
-    'node_node11',  # comment/PI nodes
-    'node_node12',  # comment/PI nodes
-    'node_node13',  # comment/PI nodes
-    'node_node14',  # comment/PI nodes
-    'position_position71',  # comment/PI nodes
-    'position_position75',  # comment/PI nodes
     )
 
 
@@ -332,6 +333,15 @@ class HackyMinimalXSLTEngine(object):
             template.dump_orig()
         print "===== %s =====" % ('=' * len(self.xsl))
 
+    def _add_default_namespace(self, results, uri):
+        # Hackily put a default namespace in our results if we have one.
+        if uri is None:
+            return
+        for node in results:
+            if ET.iselement(node) and '{' not in node.tag:
+                node.tag = '{%s}%s' % (uri, node.tag)
+                self._add_default_namespace(node, uri)
+
     def process_file(self, path):
         self.data_tree = build_xpath_tree(open(self._path(path)))
         # TODO: Should we be replacing namespaces here?
@@ -353,6 +363,9 @@ class HackyMinimalXSLTEngine(object):
             self._strip_whitespace(self.data_tree, to_strip=elems)
 
         results = self.apply_templates(self.data_tree, 1, 1)
+
+        self._add_default_namespace(results, self.xsl_tree._namespaces.get(''))
+
         if self.output_indent:
             for node in results:
                 if ET.iselement(node) and len(node) > 0:
@@ -398,6 +411,10 @@ class HackyMinimalXSLTTemplate(object):
         self.template_node = template_node
         self.pattern = self.attr_str('match', template_node)
         self.name = self.attr_str('name', template_node)
+        priority = self.attr_str('priority', template_node)
+        if priority:
+            self.priority = int(priority)
+            return
 
         # :-(
         self.priority = 0.5
@@ -409,6 +426,10 @@ class HackyMinimalXSLTTemplate(object):
                 self.priority = -0.5
             elif '(' not in rpat and '[' not in rpat:
                 self.priority = 0
+
+    def __repr__(self):
+        return "<Template: match=%r priority=%s>" % (
+            self.pattern, self.priority)
 
     def attr_str(self, attr_name, node):
         return self.engine.xev('string(@%s)' % (attr_name,), node)

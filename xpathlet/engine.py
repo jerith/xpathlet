@@ -106,7 +106,10 @@ class Context(object):
         prefix, name = '', qname
         if ':' in qname:
             prefix, name = qname.split(':')
-        uri = self.namespaces.get(prefix, None)
+        # Ignore the default namespace here.
+        uri = None
+        if prefix:
+            uri = self.namespaces[prefix]
         return (uri, name)
 
     def __repr__(self):
