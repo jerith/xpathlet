@@ -69,18 +69,6 @@ SKIP_TESTS = (
     'position_position51',
     'position_position56',
     'position_position57',
-    # copy-of
-    'copy_copy24',
-    'math_math84',
-    'math_math103',
-    'mdocs_mdocs07',
-    'mdocs_mdocs09',
-    'mdocs_mdocs10',
-    'namespace_namespace05',
-    'namespace_namespace14',
-    'position_position97',
-    'select_select03',
-    'select_select71',
     # if
     'expression_expression03',
     'expression_expression06',
@@ -94,6 +82,8 @@ SKIP_TESTS = (
     # param
     'axes_axes109',
     'axes_axes113',
+    'namespace_namespace05',
+    'namespace_namespace14',
     'namespace_namespace15',
     'namespace_namespace16',
     'node_node07',
@@ -106,10 +96,12 @@ SKIP_TESTS = (
     'axes_axes131',
     'position_position80',
     'position_position83',
+    'position_position97',  # ?
     'string_string140',
     # current()
     'axes_axes85',
     'axes_axes86',
+    'select_select03',
     # sort
     'position_position10',
     'position_position69',
@@ -118,9 +110,13 @@ SKIP_TESTS = (
     'copy_copy16',
     'position_position86',
     # document
+    'mdocs_mdocs07',
+    'mdocs_mdocs09',
+    'mdocs_mdocs10',
     'mdocs_mdocs17',
     'select_select67',
     'select_select68',
+    'select_select71',
     # modes
     'dflt_dflt04',
     'node_node20',
@@ -434,10 +430,13 @@ class HackyMinimalXSLTTemplate(object):
     def attr_str(self, attr_name, node):
         return self.engine.xev('string(@%s)' % (attr_name,), node)
 
-    def find(self, expr, cnode, pos, size):
+    def find_raw(self, expr, cnode, pos, size):
         return self.engine.data_engine.evaluate(
             expr, cnode, self.engine.get_variables(),
-            context_position=pos, context_size=size).value
+            context_position=pos, context_size=size)
+
+    def find(self, expr, cnode, pos, size):
+        return self.find_raw(expr, cnode, pos, size).value
 
     def match(self, node, pos, size):
         if not self.pattern:
@@ -469,6 +468,7 @@ class HackyMinimalXSLTTemplate(object):
             'for-each': self._apply_for_each,
             'value-of': self._apply_value_of,
             'variable': self._apply_variable,
+            'copy-of': self._apply_copy_of,
             'element': self._apply_element,
             'choose': self._apply_choose,
             'param': self._apply_variable,
@@ -547,6 +547,35 @@ class HackyMinimalXSLTTemplate(object):
         assert pattern
         return [self.find("string(%s)" % pattern, node, pos, size)]
 
+    def _copy_et(self, node):
+        if node.node_type != 'root':
+            return [node.to_et()]
+
+        result = []
+        for child in node.get_children():
+            print "  child:", child
+            if child.node_type == 'text':
+                result.append(child.text)
+            elif child.node_type == 'element':
+                result.append(child.to_et())
+            else:
+                raise NotImplementedError()
+
+        return result
+
+    def _apply_copy_of(self, templ_node, node, pos, size):
+        pattern = self.attr_str('select', templ_node)
+        assert pattern
+
+        found = self.find_raw(pattern, node, pos, size)
+        if found.object_type != 'node-set':
+            return [found.coerce('string').value]
+
+        result = []
+        for rnode in found.value:
+            result.extend(self._copy_et(rnode))
+        return result
+
     def _apply_text(self, templ_node, node, pos, size):
         return [self.engine.xev('string(.)', templ_node, pos, size)]
 
@@ -577,8 +606,7 @@ class HackyMinimalXSLTTemplate(object):
         name = self.attr_str('name', templ_node)
         select = self.attr_str('select', templ_node)
         if select:
-            value = self.engine.data_engine.evaluate(
-                select, node, context_position=pos, context_size=size)
+            value = self.find_raw(select, node, pos, size)
         else:
             value = XPathNodeSet([ResultTreeFragment(
                         self._apply_children(templ_node, node, pos, size),
@@ -608,7 +636,7 @@ class ResultTreeFragment(XPathRootNode):
             if ET.iselement(thing):
                 if text:
                     self._children.append(XPathTextNode(self, text))
-                    text = (enode.tail or '')
+                    text = (thing.tail or '')
                 self._children.append(XPathElementNode(self, thing))
             else:
                 text += thing
