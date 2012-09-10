@@ -43,14 +43,8 @@ SKIP_TESTS = (
     'namespace_namespace110',
     'output_output70',
     'position_position93',
-    'position_position98',
-    'position_position99',
-    'position_position100',
     'position_position101',
     'predicate_predicate38',
-    'select_select05',
-    'select_select75',
-    'select_select82',
     'string_string133',
     'string_string135',
     'string_string136',
@@ -117,10 +111,6 @@ SKIP_TESTS = (
     'select_select67',
     'select_select68',
     'select_select71',
-    # modes
-    'dflt_dflt04',
-    'node_node20',
-    'node_node21',
     # others
     'axes_axes59',  # number
     'boolean_boolean43',  # better result trees?
@@ -150,6 +140,7 @@ SKIP_TESTS = (
     'node_node18',
     'position_position71',
     'position_position75',
+    'select_select75',
     # others
     'idkey_idkey09',  # DTD stuff
     )
@@ -257,6 +248,21 @@ class ConformanceTestCase(object):
             return False
 
 
+class HackyTemplateContext(object):
+    def __init__(self, mode, node, pos, size):
+        self.mode = mode
+        self.node = node
+        self.pos = pos
+        self.size = size
+
+    def copy(self, **kw):
+        kw.setdefault('mode', self.mode)
+        kw.setdefault('node', self.node)
+        kw.setdefault('pos', self.pos)
+        kw.setdefault('size', self.size)
+        return type(self)(**kw)
+
+
 XSL_NAMESPACE = 'http://www.w3.org/1999/XSL/Transform'
 DEFAULT_TEMPLATE_DOC = '\n'.join([
         '<?xml version="1.0"?>',
@@ -289,7 +295,7 @@ class HackyMinimalXSLTEngine(object):
         dt_engine = ExpressionEngine(
             self._get_stripped(StringIO(DEFAULT_TEMPLATE_DOC)))
         self.built_in_templates = [
-            HackyMinimalXSLTTemplate(self, n)
+            HackyMinimalXSLTTemplate(self, n, True)
             for n in dt_engine.evaluate('//xsl:template').value]
 
     def xev(self, expr, node=None, pos=1, size=1):
@@ -351,16 +357,19 @@ class HackyMinimalXSLTEngine(object):
             self.output_indent = True
 
         for node in self.xev('/xsl:stylesheet/xsl:variable'):
-            HackyMinimalXSLTTemplate(self, node).apply_node(node, None, 1, 1)
+            ctx = HackyTemplateContext('', None, 1, 1)
+            HackyMinimalXSLTTemplate(self, node).apply_node(node, ctx)
 
         for node in self.xev('/xsl:stylesheet/xsl:param'):
-            HackyMinimalXSLTTemplate(self, node).apply_node(node, None, 1, 1)
+            ctx = HackyTemplateContext('', None, 1, 1)
+            HackyMinimalXSLTTemplate(self, node).apply_node(node, ctx)
 
         for node in self.xev('/xsl:stylesheet/xsl:strip-space'):
             elems = self.xev('string(@elements)', node).split()
             self._strip_whitespace(self.data_tree, to_strip=elems)
 
-        results = self.apply_templates(self.data_tree, 1, 1)
+        ctx = HackyTemplateContext('', self.data_tree, 1, 1)
+        results = self.apply_templates(ctx)
 
         self._add_default_namespace(results, self.xsl_tree._namespaces.get(''))
 
@@ -370,11 +379,11 @@ class HackyMinimalXSLTEngine(object):
                     _add_text_child(node, '\n')
         return results
 
-    def find_template(self, node, pos, size):
-        matches = [t for t in self.templates if t.match(node, pos, size)]
+    def find_template(self, ctx):
+        matches = [t for t in self.templates if t.match(ctx)]
         if not matches:
             matches = [t for t in self.built_in_templates
-                       if t.match(node, pos, size)]
+                       if t.match(ctx.copy(mode=''))]
 
         max_priority = max(t.priority for t in matches)
         matches = [t for t in matches if t.priority == max_priority]
@@ -382,8 +391,8 @@ class HackyMinimalXSLTEngine(object):
         assert len(matches) == 1
         return matches[0]
 
-    def apply_templates(self, node, pos, size):
-        return self.find_template(node, pos, size).apply(node, pos, size)
+    def apply_templates(self, ctx):
+        return self.find_template(ctx).apply(ctx)
 
     def set_variable(self, name, value):
         self._variables.setdefault(name, []).append(value)
@@ -404,11 +413,13 @@ def _add_text_child(elem, text):
 
 
 class HackyMinimalXSLTTemplate(object):
-    def __init__(self, engine, template_node):
+    def __init__(self, engine, template_node, built_in=False):
+        self._built_in = built_in
         self.engine = engine
         self.template_node = template_node
         self.pattern = self.attr_str('match', template_node)
         self.name = self.attr_str('name', template_node)
+        self.mode = self.attr_str('mode', template_node)
         priority = self.attr_str('priority', template_node)
         if priority:
             self.priority = int(priority)
@@ -432,37 +443,39 @@ class HackyMinimalXSLTTemplate(object):
     def attr_str(self, attr_name, node):
         return self.engine.xev('string(@%s)' % (attr_name,), node)
 
-    def find_raw(self, expr, cnode, pos, size):
+    def find_raw(self, expr, ctx):
         return self.engine.data_engine.evaluate(
-            expr, cnode, self.engine.get_variables(),
-            context_position=pos, context_size=size)
+            expr, ctx.node, self.engine.get_variables(),
+            context_position=ctx.pos, context_size=ctx.size)
 
-    def find(self, expr, cnode, pos, size):
-        return self.find_raw(expr, cnode, pos, size).value
+    def find(self, expr, ctx):
+        return self.find_raw(expr, ctx).value
 
-    def match(self, node, pos, size):
+    def match(self, ctx):
         if not self.pattern:
             return False
 
-        for cnode in self.find('ancestor-or-self::node()', node, pos, size):
-            pnodes = self.find(self.pattern, cnode, pos, size)
-            if node in pnodes:
+        if self.mode != ctx.mode:
+            return False
+
+        for node in self.find('ancestor-or-self::node()', ctx):
+            pnodes = self.find(self.pattern, ctx.copy(node=node))
+            if ctx.node in pnodes:
                 return True
 
         return False
 
-    def apply(self, node, pos, size):
-        return self._apply_children(self.template_node, node, pos, size)
+    def apply(self, ctx):
+        return self._apply_children(self.template_node, ctx)
 
-    def apply_node(self, templ_node, node, pos, size):
-
+    def apply_node(self, templ_node, ctx):
         if templ_node.node_type == 'text':
             return [templ_node.text]
 
         assert templ_node.node_type == 'element'
 
         if templ_node.prefix != XSL_NAMESPACE:
-            return self._apply_literal(templ_node, node, pos, size)
+            return self._apply_literal(templ_node, ctx)
 
         func = {
             'apply-templates': self._apply_templates,
@@ -477,12 +490,12 @@ class HackyMinimalXSLTTemplate(object):
             'text': self._apply_text,
             }.get(templ_node.name, self._apply_bad)
 
-        return func(templ_node, node, pos, size)
+        return func(templ_node, ctx)
 
-    def _apply_bad(self, templ_node, node, pos, size):
+    def _apply_bad(self, templ_node, ctx):
         raise NotImplementedError(templ_node.name)
 
-    def _eval_avt(self, expr, node, pos, size):
+    def _eval_avt(self, expr, ctx):
         import re
         expr_re = re.compile(r'((?:{{|[^{]+)*)({.*?})?')
         parts = []
@@ -491,26 +504,25 @@ class HackyMinimalXSLTTemplate(object):
             parts.append(match.group(1))
             if match.group(2):
                 parts.append(
-                    self.find(
-                        'string(%s)' % match.group(2)[1:-1], node, pos, size))
+                    self.find('string(%s)' % match.group(2)[1:-1], ctx))
             expr = expr[match.end():]
         return ''.join(parts)
 
-    def _apply_children(self, templ_node, node, pos, size):
+    def _apply_children(self, templ_node, ctx):
         results = []
         for child in templ_node.get_children():
-            results.extend(self.apply_node(child, node, pos, size))
+            results.extend(self.apply_node(child, ctx))
         return results
 
-    def _apply_literal(self, templ_node, node, pos, size):
+    def _apply_literal(self, templ_node, ctx):
         elem = ET.Element(templ_node.name)
         for attr in templ_node.get_attributes():
-            elem.set(attr.name, self._eval_avt(attr.value, node, pos, size))
+            elem.set(attr.name, self._eval_avt(attr.value, ctx))
 
-        return self._populate_element(elem, templ_node, node, pos, size)
+        return self._populate_element(elem, templ_node, ctx)
 
-    def _populate_element(self, elem, templ_node, node, pos, size):
-        for result in self._apply_children(templ_node, node, pos, size):
+    def _populate_element(self, elem, templ_node, ctx):
+        for result in self._apply_children(templ_node, ctx):
             if ET.iselement(result):
                 if self.engine.output_indent:
                     _add_text_child(elem, '\n')
@@ -521,33 +533,38 @@ class HackyMinimalXSLTTemplate(object):
 
         return [elem]
 
-    def _apply_templates(self, templ_node, node, pos, size):
+    def _apply_templates(self, templ_node, ctx):
         pattern = self.attr_str('select', templ_node)
         if not pattern:
             pattern = 'child::node()'
 
-        nodes = self.find(pattern, node, pos, size)
+        mode = self.attr_str('mode', templ_node)
+        if self._built_in:
+            mode = ctx.mode
+
+        nodes = self.find(pattern, ctx)
         results = []
-        for npos, n in enumerate(nodes, 1):
-            results.extend(self.engine.apply_templates(n, npos, len(nodes)))
+        for pos, node in enumerate(nodes, 1):
+            nctx = ctx.copy(mode=mode, node=node, pos=pos, size=len(nodes))
+            results.extend(self.engine.apply_templates(nctx))
         return results
 
-    def _apply_for_each(self, templ_node, node, pos, size):
+    def _apply_for_each(self, templ_node, ctx):
         pattern = self.attr_str('select', templ_node)
         assert pattern
 
-        nodes = self.find(pattern, node, pos, size)
+        nodes = self.find(pattern, ctx)
         results = []
-        for npos, n in enumerate(nodes, 1):
-            results.extend(
-                self._apply_children(templ_node, n, npos, len(nodes)))
+        for pos, node in enumerate(nodes, 1):
+            nctx = ctx.copy(node=node, pos=pos, size=len(nodes))
+            results.extend(self._apply_children(templ_node, nctx))
 
         return results
 
-    def _apply_value_of(self, templ_node, node, pos, size):
+    def _apply_value_of(self, templ_node, ctx):
         pattern = self.attr_str('select', templ_node)
         assert pattern
-        return [self.find("string(%s)" % pattern, node, pos, size)]
+        return [self.find("string(%s)" % pattern, ctx)]
 
     def _copy_et(self, node):
         if node.node_type != 'root':
@@ -555,7 +572,6 @@ class HackyMinimalXSLTTemplate(object):
 
         result = []
         for child in node.get_children():
-            print "  child:", child
             if child.node_type == 'text':
                 result.append(child.text)
             elif child.node_type == 'element':
@@ -565,11 +581,11 @@ class HackyMinimalXSLTTemplate(object):
 
         return result
 
-    def _apply_copy_of(self, templ_node, node, pos, size):
+    def _apply_copy_of(self, templ_node, ctx):
         pattern = self.attr_str('select', templ_node)
         assert pattern
 
-        found = self.find_raw(pattern, node, pos, size)
+        found = self.find_raw(pattern, ctx)
         if found.object_type != 'node-set':
             return [found.coerce('string').value]
 
@@ -578,50 +594,49 @@ class HackyMinimalXSLTTemplate(object):
             result.extend(self._copy_et(rnode))
         return result
 
-    def _apply_text(self, templ_node, node, pos, size):
-        return [self.engine.xev('string(.)', templ_node, pos, size)]
+    def _apply_text(self, templ_node, ctx):
+        return [self.engine.xev('string(.)', templ_node)]
 
-    def _apply_choose(self, templ_node, node, pos, size):
+    def _apply_choose(self, templ_node, ctx):
         for child in templ_node.get_children():
             assert child.name in ('when', 'otherwise')
 
             if child.name == 'when':
                 test = self.attr_str('test', child)
-                if self.find("boolean(%s)" % test, node, pos, size):
-                    return self._apply_children(child, node, pos, size)
+                if self.find("boolean(%s)" % test, ctx):
+                    return self._apply_children(child, ctx)
                 else:
                     continue
 
             if child.name == 'otherwise':
-                return self._apply_children(child, node, pos, size)
+                return self._apply_children(child, ctx)
 
             raise NotImplementedError()
 
-    def _apply_call_template(self, templ_node, node, pos, size):
+    def _apply_call_template(self, templ_node, ctx):
+        # TODO: mode?
         name = self.attr_str('name', templ_node)
         assert name
         for template in self.engine.templates:
             if template.name == name:
-                return template.apply(node, pos, size)
+                return template.apply(ctx)
 
-    def _apply_variable(self, templ_node, node, pos, size):
+    def _apply_variable(self, templ_node, ctx):
         name = self.attr_str('name', templ_node)
         select = self.attr_str('select', templ_node)
         if select:
-            value = self.find_raw(select, node, pos, size)
+            value = self.find_raw(select, ctx)
         else:
             value = XPathNodeSet([ResultTreeFragment(
-                        self._apply_children(templ_node, node, pos, size),
+                        self._apply_children(templ_node, ctx),
                         self.engine.data_tree._namespaces)])
         self.engine.set_variable(name, value)
         return []
 
-    def _apply_element(self, templ_node, node, pos, size):
-        name = self._eval_avt(
-            self.attr_str('name', templ_node), node, pos, size)
+    def _apply_element(self, templ_node, ctx):
+        name = self._eval_avt(self.attr_str('name', templ_node), ctx)
         elem = ET.Element(name)
-
-        return self._populate_element(elem, templ_node, node, pos, size)
+        return self._populate_element(elem, templ_node, ctx)
 
     def dump(self):
         ET.dump(self.template_node.to_et())
