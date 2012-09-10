@@ -245,6 +245,7 @@ class ConformanceTestCase(object):
 
         if expected == actual:
             print "[OK]", self.name
+            return True
         else:
             print "[FAIL]", self.name
             print "  expected:"
@@ -253,6 +254,7 @@ class ConformanceTestCase(object):
             print "  actual:"
             for line in actual.split('\n'):
                 print '   ', line
+            return False
 
 
 XSL_NAMESPACE = 'http://www.w3.org/1999/XSL/Transform'
@@ -649,7 +651,9 @@ class ResultTreeFragment(XPathRootNode):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) not in (2, 3):
+    args = sys.argv[1:]
+
+    if len(args) > 3:
         print "usage:\n  %s <path-to-XSLT-conformance-tests>" % (sys.argv[0],)
         print ""
         print "Run XPath subset of XSLT conformance test suite over xpathlet."
@@ -660,21 +664,37 @@ if __name__ == '__main__':
         print ""
         exit(1)
 
+    fail_fast = False
+    if '-x' in args:
+        fail_fast = True
+        args.remove('-x')
+
     test_prefix = None
-    if len(sys.argv) > 2:
-        test_prefix = sys.argv[2]
+    if len(args) > 1:
+        test_prefix = args[1]
+
     errors = []
-    for tc in list(ConformanceTestCatalog(sys.argv[1]).find_tests()):
+    total = 0
+    failed = 0
+    passed = 0
+    for tc in list(ConformanceTestCatalog(args[0]).find_tests()):
         if test_prefix:
             if '_' in test_prefix:
                 if test_prefix != tc.name:
                     continue
             elif test_prefix != tc.name.split('_')[0]:
                 continue
+        total += 1
         try:
-            tc.process()
+            if tc.process():
+                passed += 1
+            else:
+                failed += 1
+                if fail_fast:
+                    break
         except Exception, e:
             errors.append((tc.name, e))
             raise
 
-    print "\nERRORS: %s" % (errors,)
+    print "\nTotal: %s Passed: %s Failed: %s" % (total, passed, failed)
+    print "ERRORS: %s" % (errors,)
