@@ -1,4 +1,5 @@
 from math import floor, ceil, isnan
+from itertools import izip_longest
 
 from xpathlet.constants import XML_NAMESPACE
 from xpathlet.data_model import (
@@ -123,14 +124,10 @@ class CoreFunctionLibrary(FunctionLibrary):
 
     @xpath_function('string', 'string', 'string', rtype='string')
     def translate(ctx, text, from_chars, to_chars):
-        text = text.value
-        from_chars = from_chars.value
-        to_chars = to_chars.value
-        for from_c, to_c in zip(from_chars, to_chars):
-            text = text.replace(from_c, to_c)
-        for del_c in from_chars[len(to_chars):]:
-            text = text.replace(del_c, '')
-        return XPathString(text)
+        mapping = dict(
+            izip_longest(from_chars.value, to_chars.value, fillvalue=''))
+        translated_text = ''.join(mapping.get(ch, ch) for ch in text.value)
+        return XPathString(translated_text)
 
     # Boolean Functions
 

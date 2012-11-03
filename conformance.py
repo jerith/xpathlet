@@ -42,7 +42,6 @@ SKIP_TESTS = (
     'predicate_predicate38',
     'string_string133',
     'string_string135',
-    'string_string136',
 
     # Need XSLT features
     # key()
