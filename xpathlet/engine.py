@@ -7,7 +7,7 @@ from xpathlet import ast
 from xpathlet.parser import parser
 from xpathlet.constants import XML_NAMESPACE
 from xpathlet.data_model import (
-    XPathRootNode, XPathNodeSet, XPathNumber, XPathString)
+    XPathRootNode, XPathNodeSet, XPathNumber, XPathString, XPathBoolean)
 from xpathlet.core_functions import CoreFunctionLibrary
 
 
@@ -84,13 +84,17 @@ class Axis(object):
 
 
 class Context(object):
-    def __init__(self, node, position, size, variables, functions, namespaces):
+    def __init__(self, node, position, size, variables, functions, namespaces,
+                 expression=None, root_node=None, trace_collector=None):
         self.node = node
         self.position = position
         self.size = size
         self.variables = variables
         self.functions = functions
         self.namespaces = dict({'xml': XML_NAMESPACE}, **namespaces)
+        self.expression = expression
+        self.root_node = root_node
+        self.trace_collector = trace_collector
 
     def sub_context(self, node=None, position=None, size=None):
         if node is None:
@@ -100,7 +104,8 @@ class Context(object):
         if size is None:
             size = self.size
         return Context(node, position, size, self.variables, self.functions,
-                       self.namespaces)
+                       self.namespaces, self.expression, self.root_node,
+                       self.trace_collector)
 
     def expand_qname(self, qname):
         prefix, name = '', qname
@@ -114,6 +119,16 @@ class Context(object):
 
     def __repr__(self):
         return u'<Context %r, %s/%s>' % (self.node, self.position, self.size)
+
+    def start_trace(self, expr_node):
+        if self.trace_collector is not None:
+            return self.trace_collector.start_step(
+                self.expression, expr_node,
+                self.root_node, self.node, self.position, self.size)
+
+    def finish_trace(self, step_id, result):
+        if step_id is not None:
+            self.trace_collector.finish_step(step_id, result)
 
 
 class ExpressionEngine(object):
@@ -133,14 +148,15 @@ class ExpressionEngine(object):
             print u' '.join(str(a) for a in args)
 
     def evaluate(self, xpath_expr, context_node=None, variables=None,
-                 context_position=1, context_size=1):
+                 context_position=1, context_size=1, trace_collector=None):
         if context_node is None:
             context_node = self.root_node
         if variables is None:
             variables = self.variables
-        context = Context(context_node, context_position, context_size,
-                          variables.copy(), {}, self.root_node._namespaces)
         expr = parser.parse(xpath_expr)
+        context = Context(context_node, context_position, context_size,
+                          variables.copy(), {}, self.root_node._namespaces,
+                          expr, self.root_node, trace_collector)
         return self._eval_expr(context, expr)
 
     def _eval_expr(self, context, expr):
@@ -163,7 +179,9 @@ class ExpressionEngine(object):
             ast.OperatorExpr: self._eval_operator_expr,
             ast.UnaryExpr: self._eval_unary_expr,
             }.get(type(expr), self._bad_ast)
+        trace_id = context.start_trace(expr)
         result = eval_func(context, expr)
+        context.finish_trace(trace_id, result)
 
         self.dp('result:', result)
         return result
@@ -196,7 +214,7 @@ class ExpressionEngine(object):
             new_nodes = set()
             for node in nodes:
                 new_nodes.update(self._eval_expr(
-                        context.sub_context(node=node), step))
+                        context.sub_context(node=node), step).value)
             nodes = new_nodes
 
         return XPathNodeSet(nodes)
@@ -212,7 +230,7 @@ class ExpressionEngine(object):
                 i += 1
 
         nodes = self._filter_predicates(context, step.predicates, nodes)
-        return [node for _i, node in nodes]
+        return XPathNodeSet([node for _i, node in nodes])
 
     def _test_node(self, context, test_expr, axis, node):
         if isinstance(test_expr, ast.NameTest):
@@ -231,6 +249,8 @@ class ExpressionEngine(object):
         for predicate in predicates:
             assert isinstance(predicate, ast.Predicate)
             new_nodes = self._filter_predicate(context, predicate, nodes)
+            if not new_nodes:
+                return []
             nodes = [(i + 1, n[1]) for i, n in enumerate(sorted(new_nodes))]
         return nodes
 
@@ -238,15 +258,16 @@ class ExpressionEngine(object):
         ctx = context.sub_context(size=len(nodes))
         new_nodes = []
         for i, node in nodes:
-            if self._eval_expr(ctx.sub_context(node, position=i), predicate):
+            if self._eval_expr(
+                ctx.sub_context(node, position=i), predicate).value:
                 new_nodes.append((i, node))
         return new_nodes
 
     def _eval_predicate(self, context, predicate):
         result = self._eval_expr(context, predicate.expr)
         if isinstance(result, XPathNumber):
-            return result.value == context.position
-        return result.coerce('boolean').value
+            return XPathBoolean(result.value == context.position)
+        return result.coerce('boolean')
 
     def _eval_number(self, context, number):
         return XPathNumber(number.value)

@@ -6,7 +6,8 @@ from xml.etree import ElementTree as ET
 
 from xpathlet.engine import build_xpath_tree, ExpressionEngine
 from xpathlet.data_model import (
-    XPathRootNode, XPathTextNode, XPathElementNode, XPathNodeSet)
+    XPathRootNode, XPathTextNode, XPathElementNode, XPathAttributeNode,
+    XPathNodeSet)
 
 
 STORED_DATA_FILE_TEMPL = 'test_data%s.json'
@@ -35,15 +36,9 @@ SKIP_TESTS = (
     'math_math111',  # correct float formatting
     'namespace_namespace25',  # redefined namespaces
     'string_string134',  # correct float formatting
+    'output_output70',  # entity handling?
 
     # Unexplained Failures
-    'namespace_namespace29',
-    'namespace_namespace30',
-    'namespace_namespace48',
-    'namespace_namespace110',
-    'output_output70',
-    'position_position93',
-    'position_position101',
     'predicate_predicate38',
     'string_string133',
     'string_string135',
@@ -88,6 +83,7 @@ SKIP_TESTS = (
     'mdocs_mdocs13',
     # attribute
     'axes_axes131',
+    'namespace_namespace30',
     'position_position80',
     'position_position83',
     'position_position97',  # ?
@@ -99,6 +95,7 @@ SKIP_TESTS = (
     # sort
     'position_position10',
     'position_position69',
+    'position_position93',
     'select_select69',
     # copy
     'copy_copy16',
@@ -115,6 +112,8 @@ SKIP_TESTS = (
     'axes_axes59',  # number
     'boolean_boolean43',  # better result trees?
     'string_string13',  # format-number()
+    'namespace_namespace48',  # error signalling?
+    'namespace_namespace110',  # invalid namespace URI?
 
     # Unsupported by ElementTree
     # comment/PI nodes
@@ -128,6 +127,7 @@ SKIP_TESTS = (
     'axes_axes112',
     'axes_axes126',
     'axes_axes128',
+    'namespace_namespace29',
     'node_node02',
     'node_node03',
     'node_node09',
@@ -140,6 +140,7 @@ SKIP_TESTS = (
     'node_node18',
     'position_position71',
     'position_position75',
+    'position_position101',
     'select_select75',
     # others
     'idkey_idkey09',  # DTD stuff
@@ -210,9 +211,6 @@ class ConformanceTestCase(object):
     def get_output(self, name):
         return os.path.join(self.catalog_path, 'REF_OUT', self.filepath, name)
 
-    def ev(self, expr, node=None):
-        return self.data_engine.evaluate(expr, node).value
-
     def process(self):
         assert len(self.outputs) == 1
         xsls = [name for _role, name in sorted(self.xsls)]
@@ -278,6 +276,103 @@ DEFAULT_TEMPLATE_DOC = '\n'.join([
 
         '</xsl:stylesheet>',
         ])
+
+
+class TraceCollector(object):
+    def __init__(self):
+        self.steps = []
+        self.step_data = {}
+        self.depth = 0
+
+    def _escape(self, text):
+        for s, r in [('&', '&amp;'), ('<', '&lt;'), ('>', '&gt;')]:
+            text = text.replace(s, r)
+        return text
+
+    def _expr_to_html(self, expr, expr_node):
+        from xpathlet.ast import _to_html
+        old_attrs = getattr(expr_node, '_html_attrs', {})
+        expr_node._html_attrs = {'col': 'blue'}
+        expr_html = _to_html(expr)
+        expr_node._html_attrs = old_attrs
+        return expr_html
+
+    def _node_to_html(self, node, result, ctx_node):
+        bits = []
+        col = None
+        if ctx_node is node:
+            col = 'pink'
+        elif ctx_node in node.get_ancestors():
+            col = 'red'
+        if isinstance(result, XPathNodeSet):
+            for ns_node in result.value:
+                if ns_node is node:
+                    col = 'lightgreen'
+                elif ns_node in node.get_ancestors():
+                    if col != 'lightgreen':
+                        col = 'green'
+        if col:
+            bits.append('<span style="color: %s">' % (col,))
+        if isinstance(node, XPathRootNode):
+            [child] = node._children
+            bits.extend(self._node_to_html(child, result, ctx_node))
+        elif isinstance(node, XPathElementNode):
+            bits.append(self._escape("<%s" % (node.name,)))
+            for attr in node._attributes:
+                bits.extend(self._node_to_html(attr, result, ctx_node))
+            bits.append(self._escape(">"))
+            for child in node._children:
+                bits.extend(self._node_to_html(child, result, ctx_node))
+            bits.append(self._escape("</%s>" % (node.name,)))
+        elif isinstance(node, XPathAttributeNode):
+            bits.append(self._escape(" %s=%r" % (node.name, node.value)))
+        elif isinstance(node, XPathTextNode):
+            bits.append(self._escape(node.text))
+        else:
+            raise NotImplementedError()
+        if col:
+            bits.append('</span>')
+        return bits
+
+    def start_step(self, expr, expr_node, root_node, node, position, size):
+        from uuid import uuid4
+        step_id = str(uuid4())
+        self.steps.append(step_id)
+        self.step_data[step_id] = {
+            'depth': self.depth,
+            'expression_html': self._expr_to_html(expr, expr_node),
+            'root_node': root_node,
+            'ctx_node': node,
+            'ctx_position': position,
+            'ctx_size': size,
+            }
+        self.depth += 1
+        return step_id
+
+    def finish_step(self, step_id, result):
+        step_data = self.step_data[step_id]
+        step_data.update({
+            'result_html': self._escape(repr(result)),
+            'doc_html': ''.join(
+                self._node_to_html(step_data['root_node'], result,
+                                   step_data['ctx_node'])),
+            })
+        self.depth -= 1
+
+    def dump_html(self):
+        return
+        import sys
+        for step_id in self.steps:
+            step = self.step_data[step_id]
+            sys.stderr.write("<pre>expr: (")
+            sys.stderr.write(str(step['depth']))
+            sys.stderr.write(") ")
+            sys.stderr.write(step['expression_html'])
+            sys.stderr.write("\nrslt: ")
+            sys.stderr.write(step['result_html'])
+            sys.stderr.write("\n")
+            sys.stderr.write(step['doc_html'])
+            sys.stderr.write("</pre>\n")
 
 
 class HackyMinimalXSLTEngine(object):
@@ -388,6 +483,14 @@ class HackyMinimalXSLTEngine(object):
         max_priority = max(t.priority for t in matches)
         matches = [t for t in matches if t.priority == max_priority]
 
+        # print ""
+        # print ctx.pos, ctx.node
+        # print matches
+        # print ""
+
+        if len(matches) > 1:
+            sys.exit(1)
+
         assert len(matches) == 1
         return matches[0]
 
@@ -444,9 +547,13 @@ class HackyMinimalXSLTTemplate(object):
         return self.engine.xev('string(@%s)' % (attr_name,), node)
 
     def find_raw(self, expr, ctx):
-        return self.engine.data_engine.evaluate(
+        tc = TraceCollector()
+        result = self.engine.data_engine.evaluate(
             expr, ctx.node, self.engine.get_variables(),
-            context_position=ctx.pos, context_size=ctx.size)
+            context_position=ctx.pos, context_size=ctx.size,
+            trace_collector=tc)
+        tc.dump_html()
+        return result
 
     def find(self, expr, ctx):
         return self.find_raw(expr, ctx).value
@@ -668,7 +775,7 @@ class ResultTreeFragment(XPathRootNode):
 if __name__ == '__main__':
     args = sys.argv[1:]
 
-    if len(args) > 3:
+    if len(args) not in (1, 2, 3):
         print "usage:\n  %s <path-to-XSLT-conformance-tests>" % (sys.argv[0],)
         print ""
         print "Run XPath subset of XSLT conformance test suite over xpathlet."

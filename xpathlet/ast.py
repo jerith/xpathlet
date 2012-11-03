@@ -5,6 +5,9 @@ class Node(object):
     def to_str(self):
         raise NotImplementedError()
 
+    def to_html(self):
+        raise NotImplementedError()
+
     def __repr__(self):
         return u"<%s: %s>" % (type(self).__name__, self.value)
 
@@ -15,6 +18,19 @@ def _to_str(thing):
     if thing is None:
         return u''
     return u'%s' % (thing,)
+
+
+def _to_html(thing):
+    attrs = (getattr(thing, '_html_attrs', {}))
+    if isinstance(thing, Node):
+        content = thing.to_html()
+    elif thing is None:
+        content = u''
+    else:
+        content = unicode(thing)
+    if 'col' in attrs:
+        content = '<span style="color: %s">%s</span>' % (attrs['col'], content)
+    return content
 
 
 AXIS_NAMES = set([
@@ -52,8 +68,13 @@ class Step(Node):
             self.axis, self.node_test, self.predicates)
 
     def to_str(self):
-        return u'%s::%s%s' % (self.axis, self.node_test.to_str(),
-                              u''.join(p.to_str() for p in self.predicates))
+        return u'%s::%s%s' % (self.axis, _to_str(self.node_test),
+                              u''.join(_to_str(p) for p in self.predicates))
+
+    def to_html(self):
+        return u'%s::%s%s' % (self.axis, _to_html(self.node_test),
+                              u''.join(_to_html(p)
+                                       for p in self.predicates))
 
 
 class NodeType(Node):
@@ -69,6 +90,9 @@ class NodeType(Node):
     def to_str(self):
         return u'%s(%s)' % (self.node_type, _to_str(self.param))
 
+    def to_html(self):
+        return u'%s(%s)' % (self.node_type, _to_html(self.param))
+
 
 class NameTest(Node):
     def __init__(self, *bits):
@@ -78,6 +102,9 @@ class NameTest(Node):
         return u'<NameTest %s>' % self.name
 
     def to_str(self):
+        return self.name
+
+    def to_html(self):
         return self.name
 
 
@@ -90,6 +117,9 @@ class Predicate(Node):
 
     def to_str(self):
         return u'[%s]' % (self.expr.to_str(),)
+
+    def to_html(self):
+        return u'[%s]' % (_to_html(self.expr),)
 
 
 class LocationPath(Node):
@@ -112,12 +142,18 @@ class LocationPath(Node):
     def to_str(self):
         return u'/'.join(_to_str(s) for s in self.steps)
 
+    def to_html(self):
+        return u'/'.join(_to_html(s) for s in self.steps)
+
 
 class AbsoluteLocationPath(LocationPath):
     absolute = True
 
     def to_str(self):
         return u'/' + super(AbsoluteLocationPath, self).to_str()
+
+    def to_html(self):
+        return u'/' + super(AbsoluteLocationPath, self).to_html()
 
 
 class PathExpr(Node):
@@ -130,6 +166,10 @@ class PathExpr(Node):
 
     def to_str(self):
         return u'%s/%s' % (_to_str(self.left), _to_str(self.right))
+
+    def to_html(self):
+        return u'%s/%s' % (_to_html(self.left),
+                           _to_html(self.right))
 
 
 class FilterExpr(Node):
@@ -149,6 +189,11 @@ class FilterExpr(Node):
         return u'%s%s' % (self.expr.to_str(),
                           u''.join(p.to_str() for p in self.predicates))
 
+    def to_html(self):
+        return u'%s%s' % (_to_html(self.expr),
+                          u''.join(_to_html(p)
+                                   for p in self.predicates))
+
 
 class OperatorExpr(Node):
     def __init__(self, op, left, right):
@@ -163,6 +208,10 @@ class OperatorExpr(Node):
     def to_str(self):
         return u'%s %s %s' % (_to_str(self.left), self.op, _to_str(self.right))
 
+    def to_html(self):
+        return u'%s %s %s' % (_to_html(self.left), self.op,
+                              _to_html(self.right))
+
 
 class UnaryExpr(Node):
     def __init__(self, op, expr):
@@ -170,11 +219,13 @@ class UnaryExpr(Node):
         self.expr = expr
 
     def __repr__(self):
-        return u"<UnaryExpr %s: (%s, %s)>" % (
-            self.op, self.left, self.right)
+        return u"<UnaryExpr %s: %s>" % (self.op, self.expr)
 
     def to_str(self):
-        return u'%s%s' % (self.op, _to_str(self.right))
+        return u'%s%s' % (self.op, _to_str(self.expr))
+
+    def to_html(self):
+        return u'%s%s' % (self.op, _to_html(self.expr))
 
 
 class VariableReference(Node):
@@ -185,6 +236,9 @@ class VariableReference(Node):
         return u"<VariableReference: %s>" % (self.name,)
 
     def to_str(self):
+        return u'$%s' % (self.name,)
+
+    def to_html(self):
         return u'$%s' % (self.name,)
 
 
@@ -200,6 +254,10 @@ class FunctionCall(Node):
         return u'%s(%s)' % (self.name,
                             u', '.join(_to_str(a) for a in self.args))
 
+    def to_html(self):
+        return u'%s(%s)' % (self.name,
+                            u', '.join(_to_html(a) for a in self.args))
+
 
 class StringLiteral(Node):
     def __init__(self, value):
@@ -209,11 +267,19 @@ class StringLiteral(Node):
         # TODO: What about non-ASCII, etc.?
         return repr(self.value).lstrip('u')
 
+    def to_html(self):
+        # TODO: What about non-ASCII, etc.?
+        return repr(self.value).lstrip('u')
+
 
 class Number(Node):
     def __init__(self, value):
         self.value = float(value)
 
     def to_str(self):
+        # TODO: What about non-ASCII, etc.?
+        return repr(self.value)
+
+    def to_html(self):
         # TODO: What about non-ASCII, etc.?
         return repr(self.value)

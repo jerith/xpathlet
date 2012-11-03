@@ -50,7 +50,7 @@ class XPathObject(object):
         self.value = value
 
     def __repr__(self):
-        return u'<%s: %s>' % (type(self).__name__, self.value)
+        return '<%s: %r>' % (type(self).__name__, self.value)
 
     def coerce(self, object_type):
         if object_type in ('object', self.object_type):
