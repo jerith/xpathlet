@@ -51,17 +51,25 @@ AXIS_NAMES = set([
 
 
 def normalise_axis(name):
-    if name == '@':
+    if not name:
+        name = 'child'
+    elif name == '.':
+        name = 'self'
+    elif name == '..':
+        name = 'parent'
+    elif name == '@':
         name = 'attribute'
     assert name in AXIS_NAMES
     return name
 
 
 class Step(Node):
-    def __init__(self, axis, node_test, predicates):
-        self.axis = axis
+    def __init__(self, axis, node_test, predicates=None):
+        if not node_test:
+            node_test = NodeType('node')
+        self.axis = normalise_axis(axis)
         self.node_test = node_test
-        self.predicates = predicates
+        self.predicates = predicates or []
 
     def __repr__(self):
         return u'<Step %s::%s %s>' % (
@@ -128,7 +136,7 @@ class LocationPath(Node):
     def __init__(self, *steps):
         self.steps = []
         for step in steps:
-            if step == '/':
+            if (step is None) or (step == '/'):
                 # Ignore these.
                 pass
             elif isinstance(step, LocationPath):

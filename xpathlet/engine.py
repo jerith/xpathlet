@@ -5,6 +5,7 @@ import operator
 
 from xpathlet import ast
 from xpathlet.parser import parser
+# from xpathlet.new_parser import parser
 from xpathlet.constants import XML_NAMESPACE
 from xpathlet.data_model import (
     XPathRootNode, XPathNodeSet, XPathNumber, XPathString, XPathBoolean)

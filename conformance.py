@@ -32,16 +32,17 @@ SKIP_TESTS = (
     'node_node17',
     'position_position76',
     'position_position111',
+    # float formatting
+    'math_math111',
+    'string_string133',  # Syntax error in PLY parser
+    'string_string134',
+    'string_string135',  # Syntax error in PLY parser
     # other
-    'math_math111',  # correct float formatting
     'namespace_namespace25',  # redefined namespaces
-    'string_string134',  # correct float formatting
     'output_output70',  # entity handling?
 
     # Unexplained Failures
     'predicate_predicate38',
-    'string_string133',
-    'string_string135',
 
     # Need XSLT features
     # key()
