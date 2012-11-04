@@ -205,7 +205,7 @@ xpath_grammar = r"""
     #                | Number
     #                | VariableReference )
     Literal = '"' (~'"' anything)*:x '"' -> ast.StringLiteral(''.join(x))
-            | "'" (~"'" anything)*:x "'" -> ast.StringLiteral(''.join(x))
+            | '\'' (~'\'' anything)*:x '\'' -> ast.StringLiteral(''.join(x))
     Number = <digit+ ('.' digit*)?>:x -> ast.Number(x)
            | <'.' digit+>:x -> ast.Number(x)
     # Operator = OperatorName
