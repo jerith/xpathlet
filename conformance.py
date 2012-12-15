@@ -1,7 +1,7 @@
-import sys
 import json
 import os.path
 from xml.etree import ElementTree as ET
+from optparse import OptionParser
 
 from xpathlet.engine import build_xpath_tree, ExpressionEngine
 
@@ -245,46 +245,51 @@ class ConformanceTestCase(object):
 
 
 if __name__ == '__main__':
-    args = sys.argv[1:]
+    usage = '\n'.join([
+        "usage: %prog [options] [<test name> [...]]",
+        "",
+        "Run XPath subset of XSLT conformance test suite over xpathlet."
+        "The test suite can be found online at:"
+        "  https://www.oasis-open.org/committees/documents.php?wg_abbrev=xslt",
+        "Specifically, 'XSLT-testsuite-04.ZIP'",
+        "",
+        "Individual tests may be specified by full name ('string_string01')",
+        "and sets of tests may be specified by prefix ('string')."])
+    parser = OptionParser(usage=usage)
+    parser.add_option('-s', '--suite-path', metavar='PATH', action='store',
+                      dest='suite_path', default='TESTS',
+                      help='path to conformance test suite [%default]')
+    parser.add_option('-x', '--fail-fast', action='store_true',
+                      dest='fail_fast', default=False,
+                      help='stop on first failure')
 
-    if len(args) not in (1, 2, 3):
-        print "usage:\n  %s <path-to-XSLT-conformance-tests>" % (sys.argv[0],)
-        print ""
-        print "Run XPath subset of XSLT conformance test suite over xpathlet."
-        print "The test suite can be found online at:"
-        print ("  https://www.oasis-open.org/committees/documents.php?"
-               "wg_abbrev=xslt")
-        print "Specifically, 'XSLT-testsuite-04.ZIP'"
-        print ""
-        exit(1)
+    (opts, test_names) = parser.parse_args()
 
-    fail_fast = False
-    if '-x' in args:
-        fail_fast = True
-        args.remove('-x')
+    tests_to_run = []
 
-    test_prefix = None
-    if len(args) > 1:
-        test_prefix = args[1]
+    for tc in ConformanceTestCatalog(opts.suite_path).find_tests():
+        if not test_names:
+            # Special case. If no tests are specified, run them all.
+            tests_to_run.append(tc)
+            continue
+
+        for test_name in test_names:
+            if test_name == tc.name or test_name == tc.name.split('_')[0]:
+                tests_to_run.append(tc)
+                break
 
     errors = []
     total = 0
     failed = 0
     passed = 0
-    for tc in list(ConformanceTestCatalog(args[0]).find_tests()):
-        if test_prefix:
-            if '_' in test_prefix:
-                if test_prefix != tc.name:
-                    continue
-            elif test_prefix != tc.name.split('_')[0]:
-                continue
+    for tc in tests_to_run:
         total += 1
         try:
             if tc.process():
                 passed += 1
             else:
                 failed += 1
-                if fail_fast:
+                if opts.fail_fast:
                     break
         except Exception, e:
             errors.append((tc.name, e))
