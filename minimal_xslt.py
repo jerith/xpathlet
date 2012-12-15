@@ -147,7 +147,7 @@ class HackyMinimalXSLTEngine(object):
 
         for node in self.xev('/xsl:stylesheet/xsl:param'):
             ctx = HackyTemplateContext('', None, 1, 1)
-            HackyMinimalXSLTTemplate(self, node).apply_node(node, ctx)
+            HackyMinimalXSLTTemplate(self, node)._apply_variable(node, ctx)
 
         for node in self.xev('/xsl:stylesheet/xsl:strip-space'):
             elems = self.attr_str('elements', node).split()
@@ -185,7 +185,7 @@ class HackyMinimalXSLTEngine(object):
         return matches[0]
 
     def apply_templates(self, ctx):
-        return self.find_template(ctx).apply(ctx)
+        return self.find_template(ctx).apply(ctx, {})
 
     def set_variable(self, name, value):
         self._variables.setdefault(name, []).append(value)
@@ -214,21 +214,31 @@ class HackyMinimalXSLTTemplate(object):
         self.pattern = self.attr_str('match', template_node)
         self.name = self.attr_str('name', template_node)
         self.mode = self.attr_str('mode', template_node)
-        priority = self.attr_str('priority', template_node)
+        self.priority = self._calc_priority()
+        self.params = {}
+        for child in template_node.get_children():
+            if child.node_type != 'element' or child.name != 'param':
+                # param elements are only allowed at the top of templates
+                break
+            self.params[self.attr_str('name', child)] = []
+
+    def _calc_priority(self):
+        priority = self.attr_str('priority', self.template_node)
         if priority:
-            self.priority = int(priority)
-            return
+            return float(priority)
 
         # :-(
-        self.priority = 0.5
+        priority = 0.5
         if '/' not in self.pattern and '[' not in self.pattern:
             rpat = self.pattern.split('::')[-1]
             if rpat.endswith(':*'):
-                self.priority = -0.25
+                priority = -0.25
             elif rpat.endswith('()'):
-                self.priority = -0.5
+                priority = -0.5
             elif '(' not in rpat and '[' not in rpat:
-                self.priority = 0
+                priority = 0
+
+        return priority
 
     def __repr__(self):
         return "<Template: match=%r priority=%s>" % (
@@ -269,8 +279,14 @@ class HackyMinimalXSLTTemplate(object):
 
         return False
 
-    def apply(self, ctx):
-        return self._apply_children(self.template_node, ctx)
+    def apply(self, ctx, params):
+        for name, vals in self.params.items():
+            vals.append(params.get(name, None))
+        result = self._apply_children(self.template_node, ctx)
+        for name, vals in self.params.items():
+            vals[-1:] = []
+            self.engine.unset_variable(name)
+        return result
 
     def apply_node(self, templ_node, ctx):
         if templ_node.node_type == 'text':
@@ -290,7 +306,7 @@ class HackyMinimalXSLTTemplate(object):
             'copy-of': self._apply_copy_of,
             'element': self._apply_element,
             'choose': self._apply_choose,
-            'param': self._apply_variable,
+            'param': self._apply_param,
             'text': self._apply_text,
             'if': self._apply_if,
             }.get(templ_node.name, self._apply_bad)
@@ -428,20 +444,40 @@ class HackyMinimalXSLTTemplate(object):
         # TODO: mode?
         name = self.attr_str('name', templ_node)
         assert name
+        params = {}
+        for child in templ_node.get_children():
+            if child.node_type == 'text':
+                continue
+            assert child.name == 'with-param'
+            param_name = self.attr_str('name', child)
+            params[param_name] = self._get_binding_value(child, ctx)
+
         for template in self.engine.templates:
             if template.name == name:
-                return template.apply(ctx)
+                return template.apply(ctx, params)
+
+    def _get_binding_value(self, templ_node, ctx):
+        select = self.attr_str('select', templ_node)
+        if select:
+            return self.find_raw(select, ctx)
+        if not templ_node.get_children():
+            return XPathString('')
+
+        return XPathNodeSet([ResultTreeFragment(
+            self._apply_children(templ_node, ctx),
+            self.engine.data_tree._namespaces)])
 
     def _apply_variable(self, templ_node, ctx):
         name = self.attr_str('name', templ_node)
-        select = self.attr_str('select', templ_node)
-        if select:
-            value = self.find_raw(select, ctx)
-        else:
-            value = XPathNodeSet([ResultTreeFragment(
-                        self._apply_children(templ_node, ctx),
-                        self.engine.data_tree._namespaces)])
+        value = self._get_binding_value(templ_node, ctx)
         self.engine.set_variable(name, value)
+        return []
+
+    def _apply_param(self, templ_node, ctx):
+        name = self.attr_str('name', templ_node)
+        if self.params[name][-1] is None:
+            self.params[name][-1] = self._get_binding_value(templ_node, ctx)
+        self.engine.set_variable(name, self.params[name][-1])
         return []
 
     def _apply_element(self, templ_node, ctx):
