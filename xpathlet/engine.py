@@ -86,7 +86,8 @@ class Axis(object):
 
 class Context(object):
     def __init__(self, node, position, size, variables, functions, namespaces,
-                 expression=None, root_node=None, trace_collector=None):
+                 expression=None, root_node=None, metadata=None,
+                 trace_collector=None):
         self.node = node
         self.position = position
         self.size = size
@@ -95,6 +96,7 @@ class Context(object):
         self.namespaces = dict({'xml': XML_NAMESPACE}, **namespaces)
         self.expression = expression
         self.root_node = root_node
+        self.metadata = metadata or {}
         self.trace_collector = trace_collector
 
     def sub_context(self, node=None, position=None, size=None):
@@ -106,7 +108,7 @@ class Context(object):
             size = self.size
         return Context(node, position, size, self.variables, self.functions,
                        self.namespaces, self.expression, self.root_node,
-                       self.trace_collector)
+                       self.metadata, self.trace_collector)
 
     def expand_qname(self, qname):
         prefix, name = '', qname
@@ -149,7 +151,8 @@ class ExpressionEngine(object):
             print u' '.join(str(a) for a in args)
 
     def evaluate(self, xpath_expr, context_node=None, variables=None,
-                 context_position=1, context_size=1, trace_collector=None):
+                 context_position=1, context_size=1, metadata=None,
+                 trace_collector=None):
         if context_node is None:
             context_node = self.root_node
         if variables is None:
@@ -157,7 +160,7 @@ class ExpressionEngine(object):
         expr = parser.parse(xpath_expr)
         context = Context(context_node, context_position, context_size,
                           variables.copy(), {}, self.root_node._namespaces,
-                          expr, self.root_node, trace_collector)
+                          expr, self.root_node, metadata, trace_collector)
         return self._eval_expr(context, expr)
 
     def _eval_expr(self, context, expr):

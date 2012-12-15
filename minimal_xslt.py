@@ -229,11 +229,11 @@ class HackyMinimalXSLTTemplate(object):
                 tuple(sorted(self.engine.get_variables().items())))
         if ckey not in self._find_cache:
             tc = TraceCollector() if self.engine.should_trace else None
-            variables = self.engine.get_variables().copy()
-            variables['$CURRENT_NODE$'] = ctx.node
+            metadata = {'current_node': ctx.node}
             result = self.engine.data_engine.evaluate(
-                expr, ctx.node, variables, context_position=ctx.pos,
-                context_size=ctx.size, trace_collector=tc)
+                expr, ctx.node, self.engine.get_variables(),
+                context_position=ctx.pos, context_size=ctx.size,
+                metadata=metadata, trace_collector=tc)
             if tc is not None:
                 tc.dump_html()
             self._find_cache[ckey] = result
@@ -472,7 +472,7 @@ class XSLTFunctionLibrary(FunctionLibrary):
 
     @xpath_function(rtype='node-set')
     def current(ctx):
-        return XPathNodeSet([ctx.variables['$CURRENT_NODE$']])
+        return XPathNodeSet([ctx.metadata['current_node']])
 
     @xpath_function('string', rtype='string')
     def unparsed_entity_uri(ctx, name):
