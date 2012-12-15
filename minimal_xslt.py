@@ -154,7 +154,15 @@ class HackyMinimalXSLTEngine(object):
             self._strip_whitespace(self.data_tree, to_strip=elems)
 
         ctx = HackyTemplateContext('', self.data_tree, 1, 1)
-        results = self.apply_templates(ctx)
+        raw_results = self.apply_templates(ctx)
+        results = []
+
+        while raw_results:
+            node = raw_results.pop(0)
+            if isinstance(node, AttributeResult):
+                results[-1].set(node.name, node.value)
+            else:
+                results.append(node)
 
         self._add_default_namespace(results, self.xsl_tree._namespaces.get(''))
 
@@ -300,6 +308,7 @@ class HackyMinimalXSLTTemplate(object):
         func = {
             'apply-templates': self._apply_templates,
             'call-template': self._apply_call_template,
+            'attribute': self._apply_attribute,
             'for-each': self._apply_for_each,
             'value-of': self._apply_value_of,
             'variable': self._apply_variable,
@@ -344,7 +353,10 @@ class HackyMinimalXSLTTemplate(object):
 
     def _populate_element(self, elem, templ_node, ctx):
         for result in self._apply_children(templ_node, ctx):
-            if ET.iselement(result):
+            if isinstance(result, AttributeResult):
+                elem.set(result.name, result.value)
+                continue
+            elif ET.iselement(result):
                 if self.engine.output_indent:
                     _add_text_child(elem, '\n')
                 elem.append(result)
@@ -388,6 +400,9 @@ class HackyMinimalXSLTTemplate(object):
         return [self.find("string(%s)" % pattern, ctx)]
 
     def _copy_et(self, node):
+        if node.node_type == 'attribute':
+            return [AttributeResult(node.name, node.value)]
+
         if node.node_type != 'root':
             return [node.to_et()]
 
@@ -485,11 +500,22 @@ class HackyMinimalXSLTTemplate(object):
         elem = ET.Element(name)
         return self._populate_element(elem, templ_node, ctx)
 
+    def _apply_attribute(self, templ_node, ctx):
+        name = self._eval_avt(self.attr_str('name', templ_node), ctx)
+        [value] = self._apply_children(templ_node, ctx)
+        return [AttributeResult(name, value)]
+
     def dump(self):
         ET.dump(self.template_node.to_et())
 
     def dump_orig(self):
         ET.dump(self.template_node._enode)
+
+
+class AttributeResult(object):
+    def __init__(self, name, value):
+        self.name = name
+        self.value = value
 
 
 class ResultTreeFragment(XPathRootNode):

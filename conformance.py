@@ -48,13 +48,6 @@ SKIP_TESTS = (
     'impincl_impincl17',
     'mdocs_mdocs12',
     'mdocs_mdocs13',
-    # attribute
-    'axes_axes131',
-    'namespace_namespace30',
-    'position_position80',
-    'position_position83',
-    'position_position97',  # ?
-    'string_string140',
     # sort
     'axes_axes113',
     'position_position10',
@@ -92,6 +85,7 @@ SKIP_TESTS = (
     'axes_axes126',
     'axes_axes128',
     'namespace_namespace29',
+    'namespace_namespace30',
     'node_node02',
     'node_node03',
     'node_node09',
