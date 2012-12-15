@@ -42,9 +42,10 @@ DEFAULT_TEMPLATE_DOC = '\n'.join([
 
 
 class HackyMinimalXSLTEngine(object):
-    def __init__(self, base_path, xsl):
+    def __init__(self, base_path, xsl, trace=False):
         self.base_path = base_path
         self.xsl = xsl
+        self.should_trace = trace
         self._variables = {}
         self._xev_cache = {}
 
@@ -221,12 +222,13 @@ class HackyMinimalXSLTTemplate(object):
         ckey = (expr, ctx.node, ctx.pos, ctx.size,
                 tuple(sorted(self.engine.get_variables().items())))
         if ckey not in self._find_cache:
-            tc = TraceCollector()
+            tc = TraceCollector() if self.engine.should_trace else None
             result = self.engine.data_engine.evaluate(
                 expr, ctx.node, self.engine.get_variables(),
                 context_position=ctx.pos, context_size=ctx.size,
                 trace_collector=tc)
-            tc.dump_html()
+            if tc is not None:
+                tc.dump_html()
             self._find_cache[ckey] = result
         return self._find_cache[ckey]
 

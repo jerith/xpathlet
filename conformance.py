@@ -146,9 +146,10 @@ SKIP_TESTS = (
 
 
 class ConformanceTestCatalog(object):
-    def __init__(self, base_path, catalog=1):
+    def __init__(self, base_path, catalog=1, trace=False):
         self.base_path = base_path
         self.catalog = catalog
+        self.trace = trace
 
     def find(self, expr, node=None):
         if node is None:
@@ -168,7 +169,7 @@ class ConformanceTestCatalog(object):
         for test in tests:
             test = dict((str(k), v) for k, v in test.items())
             if test['name'] not in SKIP_TESTS:
-                yield ConformanceTestCase(self.base_path, **test)
+                yield ConformanceTestCase(self.base_path, self.trace, **test)
 
     def find_tests_full(self):
         tree = build_xpath_tree(
@@ -194,14 +195,15 @@ class ConformanceTestCatalog(object):
 
 
 class ConformanceTestCase(object):
-    def __init__(self, base_path, catpath, name,
-                 filepath, datas, xsls, outputs):
+    def __init__(self, base_path, trace,
+                 catpath, name, filepath, datas, xsls, outputs):
         self.catalog_path = os.path.join(base_path, catpath)
         self.name = name
         self.filepath = filepath
         self.datas = datas
         self.xsls = xsls
         self.outputs = outputs
+        self.trace = trace
 
     def get_input(self, name):
         return os.path.join(self.catalog_path, self.filepath, name)
@@ -215,7 +217,8 @@ class ConformanceTestCase(object):
         datas = [name for _role, name in sorted(self.datas)]
 
         engine = HackyMinimalXSLTEngine(
-            os.path.join(self.catalog_path, self.filepath), xsls[0])
+            os.path.join(self.catalog_path, self.filepath), xsls[0],
+            self.trace)
 
         try:
             out_parts = engine.process_file(datas[0])
@@ -262,12 +265,15 @@ if __name__ == '__main__':
     parser.add_option('-x', '--fail-fast', action='store_true',
                       dest='fail_fast', default=False,
                       help='stop on first failure')
+    parser.add_option('--trace', action='store_true', dest='trace',
+                      default=False, help='trace XPath execution flow')
 
     (opts, test_names) = parser.parse_args()
 
+    test_catalog = ConformanceTestCatalog(opts.suite_path, trace=opts.trace)
     tests_to_run = []
 
-    for tc in ConformanceTestCatalog(opts.suite_path).find_tests():
+    for tc in test_catalog.find_tests():
         if not test_names:
             # Special case. If no tests are specified, run them all.
             tests_to_run.append(tc)
