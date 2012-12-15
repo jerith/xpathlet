@@ -298,6 +298,7 @@ class TraceCollector(object):
         return expr_html
 
     def _node_to_html(self, node, result, ctx_node):
+        # return []
         bits = []
         col = None
         if ctx_node is node:
@@ -380,6 +381,7 @@ class HackyMinimalXSLTEngine(object):
         self.base_path = base_path
         self.xsl = xsl
         self._variables = {}
+        self._xev_cache = {}
 
         self.xsl_tree = self._get_stripped(open(self._path(self.xsl)))
         self.xsl_engine = ExpressionEngine(self.xsl_tree)
@@ -394,13 +396,16 @@ class HackyMinimalXSLTEngine(object):
             for n in dt_engine.evaluate('//xsl:template').value]
 
     def xev(self, expr, node=None, pos=1, size=1):
-        ns_prefix = 'xsl'
-        for prefix, val in self.xsl_tree._namespaces.items():
-            if val == XSL_NAMESPACE:
-                ns_prefix = prefix
-        expr = expr.replace('xsl:', '%s:' % (ns_prefix))
-        return self.xsl_engine.evaluate(
-            expr, node, context_position=pos, context_size=size).value
+        ckey = (expr, node, pos, size)
+        if ckey not in self._xev_cache:
+            ns_prefix = 'xsl'
+            for prefix, val in self.xsl_tree._namespaces.items():
+                if val == XSL_NAMESPACE:
+                    ns_prefix = prefix
+            expr = expr.replace('xsl:', '%s:' % (ns_prefix))
+            self._xev_cache[ckey] = self.xsl_engine.evaluate(
+                expr, node, context_position=pos, context_size=size).value
+        return self._xev_cache[ckey]
 
     def _get_stripped(self, xsl_file):
         xtree = build_xpath_tree(xsl_file)
@@ -518,6 +523,7 @@ def _add_text_child(elem, text):
 class HackyMinimalXSLTTemplate(object):
     def __init__(self, engine, template_node, built_in=False):
         self._built_in = built_in
+        self._find_cache = {}
         self.engine = engine
         self.template_node = template_node
         self.pattern = self.attr_str('match', template_node)
@@ -547,13 +553,17 @@ class HackyMinimalXSLTTemplate(object):
         return self.engine.xev('string(@%s)' % (attr_name,), node)
 
     def find_raw(self, expr, ctx):
-        tc = TraceCollector()
-        result = self.engine.data_engine.evaluate(
-            expr, ctx.node, self.engine.get_variables(),
-            context_position=ctx.pos, context_size=ctx.size,
-            trace_collector=tc)
-        tc.dump_html()
-        return result
+        ckey = (expr, ctx.node, ctx.pos, ctx.size,
+                tuple(sorted(self.engine.get_variables().items())))
+        if ckey not in self._find_cache:
+            tc = TraceCollector()
+            result = self.engine.data_engine.evaluate(
+                expr, ctx.node, self.engine.get_variables(),
+                context_position=ctx.pos, context_size=ctx.size,
+                trace_collector=tc)
+            tc.dump_html()
+            self._find_cache[ckey] = result
+        return self._find_cache[ckey]
 
     def find(self, expr, ctx):
         return self.find_raw(expr, ctx).value

@@ -272,12 +272,10 @@ class StringLiteral(Node):
         self.value = value
 
     def to_str(self):
-        # TODO: What about non-ASCII, etc.?
-        return repr(self.value).lstrip('u')
+        return repr(self.value.encode('utf-8'))
 
     def to_html(self):
-        # TODO: What about non-ASCII, etc.?
-        return repr(self.value).lstrip('u')
+        return repr(self.value.encode('utf-8'))
 
 
 class Number(Node):
