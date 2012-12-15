@@ -1,4 +1,5 @@
 import sys
+import uuid
 import os.path
 from StringIO import StringIO
 from xml.etree import ElementTree as ET
@@ -6,7 +7,7 @@ from xml.etree import ElementTree as ET
 from xpathlet.engine import build_xpath_tree, ExpressionEngine
 from xpathlet.data_model import (
     XPathRootNode, XPathTextNode, XPathElementNode, XPathNodeSet,
-    FunctionLibrary, xpath_function)
+    FunctionLibrary, xpath_function, XPathString)
 from xpathlet.trace_collector import TraceCollector
 
 
@@ -291,6 +292,7 @@ class HackyMinimalXSLTTemplate(object):
             'choose': self._apply_choose,
             'param': self._apply_variable,
             'text': self._apply_text,
+            'if': self._apply_if,
             }.get(templ_node.name, self._apply_bad)
 
         return func(templ_node, ctx)
@@ -416,6 +418,12 @@ class HackyMinimalXSLTTemplate(object):
 
             raise NotImplementedError()
 
+    def _apply_if(self, templ_node, ctx):
+        test = self.attr_str('test', templ_node)
+        if self.find("boolean(%s)" % test, ctx):
+            return self._apply_children(templ_node, ctx)
+        return []
+
     def _apply_call_template(self, templ_node, ctx):
         # TODO: mode?
         name = self.attr_str('name', templ_node)
@@ -529,6 +537,7 @@ class HackyMinimalXSLTKey(object):
 
 
 class XSLTFunctionLibrary(FunctionLibrary):
+    generated_ids = {}  # TODO: Something better than this?
 
     @xpath_function('object', 'node-set?', rtype='node-set')
     def document(ctx, obj, node_set=None):
@@ -560,7 +569,14 @@ class XSLTFunctionLibrary(FunctionLibrary):
 
     @xpath_function('node-set?', rtype='string')
     def generate_id(ctx, node_set=None):
-        raise NotImplementedError()
+        if node_set is None:
+            node_set = XPathNodeSet([ctx.node])
+        if not node_set.value:
+            return XPathString('')
+        node = node_set.value[0]
+        if node not in XSLTFunctionLibrary.generated_ids:
+            XSLTFunctionLibrary.generated_ids[node] = uuid.uuid4().hex
+        return XPathString('id%s' % (XSLTFunctionLibrary.generated_ids[node],))
 
     @xpath_function('string', rtype='object')
     def system_property(ctx):

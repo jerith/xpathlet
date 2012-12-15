@@ -43,16 +43,6 @@ SKIP_TESTS = (
     'predicate_predicate38',
 
     # Need XSLT features
-    # if
-    'expression_expression03',
-    'expression_expression06',
-    'position_position11',
-    'position_position41',
-    'position_position68',
-    'position_position78',
-    'position_position106',
-    'predicate_predicate37',
-    'predicate_predicate57',
     # param
     'axes_axes109',
     'axes_axes113',
@@ -61,6 +51,7 @@ SKIP_TESTS = (
     'namespace_namespace15',
     'namespace_namespace16',
     'node_node07',
+    'position_position78',
     # import/include
     'impincl_impincl16',
     'impincl_impincl17',
