@@ -86,10 +86,6 @@ SKIP_TESTS = (
     'position_position83',
     'position_position97',  # ?
     'string_string140',
-    # current()
-    'axes_axes85',
-    'axes_axes86',
-    'select_select03',
     # sort
     'position_position10',
     'position_position69',

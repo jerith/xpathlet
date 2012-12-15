@@ -142,7 +142,7 @@ class ExpressionEngine(object):
         self.variables = variables
         self.function_libraries = [CoreFunctionLibrary()]
         if function_libraries is not None:
-            self.function_libraries.extent(function_libraries)
+            self.function_libraries.extend(function_libraries)
 
     def dp(self, *args):
         if self.debug:
@@ -280,10 +280,12 @@ class ExpressionEngine(object):
         return context.variables[variable_reference.name]
 
     def _eval_function_call(self, context, function_call):
-        # TODO: Make this suitably flexible.
+        # TODO: Context function libraries?
         args = [self._eval_expr(context, arg) for arg in function_call.args]
-        core_funcs = self.function_libraries[0]
-        return core_funcs[function_call.name](context, *args)
+        for func_lib in reversed(self.function_libraries):
+            if function_call.name in func_lib:
+                return func_lib[function_call.name](context, *args)
+        raise ValueError("Undefined function: '%s'" % (function_call.name,))
 
     def _eval_operator_expr(self, context, operator_expr):
         if operator_expr.op in ('and', 'or'):

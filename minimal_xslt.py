@@ -5,7 +5,8 @@ from xml.etree import ElementTree as ET
 
 from xpathlet.engine import build_xpath_tree, ExpressionEngine
 from xpathlet.data_model import (
-    XPathRootNode, XPathTextNode, XPathElementNode, XPathNodeSet)
+    XPathRootNode, XPathTextNode, XPathElementNode, XPathNodeSet,
+    FunctionLibrary, xpath_function)
 from xpathlet.trace_collector import TraceCollector
 
 
@@ -41,6 +42,11 @@ DEFAULT_TEMPLATE_DOC = '\n'.join([
         ])
 
 
+def xslt_xpath_engine(root_node, variables=None):
+    return ExpressionEngine(root_node, variables=variables,
+                            function_libraries=[XSLTFunctionLibrary()])
+
+
 class HackyMinimalXSLTEngine(object):
     def __init__(self, base_path, xsl, trace=False):
         self.base_path = base_path
@@ -50,12 +56,12 @@ class HackyMinimalXSLTEngine(object):
         self._xev_cache = {}
 
         self.xsl_tree = self._get_stripped(open(self._path(self.xsl)))
-        self.xsl_engine = ExpressionEngine(self.xsl_tree)
+        self.xsl_engine = xslt_xpath_engine(self.xsl_tree)
         self.templates = [
             HackyMinimalXSLTTemplate(self, node)
             for node in self.xev('//xsl:template')]
 
-        dt_engine = ExpressionEngine(
+        dt_engine = xslt_xpath_engine(
             self._get_stripped(StringIO(DEFAULT_TEMPLATE_DOC)))
         self.built_in_templates = [
             HackyMinimalXSLTTemplate(self, n, True)
@@ -116,7 +122,7 @@ class HackyMinimalXSLTEngine(object):
         self.data_tree = build_xpath_tree(open(self._path(path)))
         # TODO: Should we be replacing namespaces here?
         self.data_tree._namespaces = self.xsl_tree._namespaces
-        self.data_engine = ExpressionEngine(self.data_tree)
+        self.data_engine = xslt_xpath_engine(self.data_tree)
 
         self.output_indent = False
         if self.xev('string(/xsl:stylesheet/xsl:output/@indent)') == 'yes':
@@ -223,10 +229,11 @@ class HackyMinimalXSLTTemplate(object):
                 tuple(sorted(self.engine.get_variables().items())))
         if ckey not in self._find_cache:
             tc = TraceCollector() if self.engine.should_trace else None
+            variables = self.engine.get_variables().copy()
+            variables['$CURRENT_NODE$'] = ctx.node
             result = self.engine.data_engine.evaluate(
-                expr, ctx.node, self.engine.get_variables(),
-                context_position=ctx.pos, context_size=ctx.size,
-                trace_collector=tc)
+                expr, ctx.node, variables, context_position=ctx.pos,
+                context_size=ctx.size, trace_collector=tc)
             if tc is not None:
                 tc.dump_html()
             self._find_cache[ckey] = result
@@ -447,3 +454,34 @@ class ResultTreeFragment(XPathRootNode):
             node._doc_position = i
             if isinstance(node, XPathElementNode) and node.xml_id is not None:
                 self._xml_ids.setdefault(node.xml_id, node)
+
+
+class XSLTFunctionLibrary(FunctionLibrary):
+
+    @xpath_function('object', 'node-set?', rtype='node-set')
+    def document(ctx, obj, node_set=None):
+        raise NotImplementedError()
+
+    @xpath_function('string', 'object', rtype='node-set')
+    def key(ctx, name, obj):
+        raise NotImplementedError()
+
+    @xpath_function('number', 'string', 'string?', rtype='string')
+    def format_number(ctx, num, formatstr, decimalstr):
+        raise NotImplementedError()
+
+    @xpath_function(rtype='node-set')
+    def current(ctx):
+        return XPathNodeSet([ctx.variables['$CURRENT_NODE$']])
+
+    @xpath_function('string', rtype='string')
+    def unparsed_entity_uri(ctx, name):
+        raise NotImplementedError()
+
+    @xpath_function('node-set?', rtype='string')
+    def generate_id(ctx, node_set=None):
+        raise NotImplementedError()
+
+    @xpath_function('string', rtype='object')
+    def system_property(ctx):
+        raise NotImplementedError()
