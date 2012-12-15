@@ -32,9 +32,9 @@ SKIP_TESTS = (
     'position_position111',
     # float formatting
     'math_math111',
-    'string_string133',  # Syntax error in PLY parser
+    'string_string133',
     'string_string134',
-    'string_string135',  # Syntax error in PLY parser
+    'string_string135',
     # other
     'namespace_namespace25',  # redefined namespaces
     'output_output70',  # entity handling?

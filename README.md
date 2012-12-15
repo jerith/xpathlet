@@ -4,7 +4,8 @@ xpathlet
 A pure Python XPath implementation that operates on ElementTree objects.
 
 The only external dependency is [PLY][1], which is a pure Python lex/yacc
-implementation.
+implementation. (There is also a alternate parser which uses [parsley][2], but
+that's currently much slower and is therefore not the default.)
 
 Features
 --------
@@ -21,7 +22,7 @@ At the moment, xpathlet consists of:
 
 * A definitely-incomplete core function library.
 
-In the future, it will hopefully be a fully standards-compliant [XPath 1.0][2]
+In the future, it will hopefully be a fully standards-compliant [XPath 1.0][3]
 implementation that operates on ElementTree objects. Except maybe not around
 namespaces.
 
@@ -41,7 +42,7 @@ Testing
 
 There aren't very many unit tests around the actual implementation (yet), but
 there is a test harness (`conformance.py`) to run the subset of the
-[OASIS XSLT test suite v0.4][3] (not included) that relates to XPath.
+[OASIS XSLT test suite v0.4][4] (not included) that relates to XPath.
 
 The harness includes a half-hearted partial implementation of some of XSLT.
 This should not be considered an actual XSLT implementation.
@@ -55,5 +56,6 @@ The expected benefits outweigh the pain for now, but that may not last forever.
 
 
 [1]: http://www.dabeaz.com/ply/
-[2]: http://www.w3.org/TR/xpath/
-[3]: https://www.oasis-open.org/committees/documents.php?wg_abbrev=xslt
+[2]: http://pypi.python.org/pypi/Parsley
+[3]: http://www.w3.org/TR/xpath/
+[4]: https://www.oasis-open.org/committees/documents.php?wg_abbrev=xslt
