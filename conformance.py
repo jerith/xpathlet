@@ -43,19 +43,6 @@ SKIP_TESTS = (
     'predicate_predicate38',
 
     # Need XSLT features
-    # key()
-    'position_position05',
-    'position_position42',
-    'position_position43',
-    'position_position44',
-    'position_position45',
-    'position_position46',
-    'position_position47',
-    'position_position49',
-    'position_position50',
-    'position_position51',
-    'position_position56',
-    'position_position57',
     # if
     'expression_expression03',
     'expression_expression06',

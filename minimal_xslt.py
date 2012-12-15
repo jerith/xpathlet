@@ -53,6 +53,7 @@ class HackyMinimalXSLTEngine(object):
         self.xsl = xsl
         self.should_trace = trace
         self._variables = {}
+        self._keys = {}
         self._xev_cache = {}
 
         self.xsl_tree = self._get_stripped(open(self._path(self.xsl)))
@@ -78,6 +79,9 @@ class HackyMinimalXSLTEngine(object):
             self._xev_cache[ckey] = self.xsl_engine.evaluate(
                 expr, node, context_position=pos, context_size=size).value
         return self._xev_cache[ckey]
+
+    def attr_str(self, attr_name, node):
+        return self.xev('string(@%s)' % (attr_name,), node)
 
     def _get_stripped(self, xsl_file):
         xtree = build_xpath_tree(xsl_file)
@@ -128,6 +132,14 @@ class HackyMinimalXSLTEngine(object):
         if self.xev('string(/xsl:stylesheet/xsl:output/@indent)') == 'yes':
             self.output_indent = True
 
+        for node in self.xev('/xsl:stylesheet/xsl:key'):
+            # TODO: Expand qname?
+            name = self.attr_str('name', node)
+            self._keys[name] = {
+                'match': self.attr_str('match', node),
+                'use': self.attr_str('use', node),
+            }
+
         for node in self.xev('/xsl:stylesheet/xsl:variable'):
             ctx = HackyTemplateContext('', None, 1, 1)
             HackyMinimalXSLTTemplate(self, node).apply_node(node, ctx)
@@ -137,7 +149,7 @@ class HackyMinimalXSLTEngine(object):
             HackyMinimalXSLTTemplate(self, node).apply_node(node, ctx)
 
         for node in self.xev('/xsl:stylesheet/xsl:strip-space'):
-            elems = self.xev('string(@elements)', node).split()
+            elems = self.attr_str('elements', node).split()
             self._strip_whitespace(self.data_tree, to_strip=elems)
 
         ctx = HackyTemplateContext('', self.data_tree, 1, 1)
@@ -222,14 +234,14 @@ class HackyMinimalXSLTTemplate(object):
             self.pattern, self.priority)
 
     def attr_str(self, attr_name, node):
-        return self.engine.xev('string(@%s)' % (attr_name,), node)
+        return self.engine.attr_str(attr_name, node)
 
     def find_raw(self, expr, ctx):
         ckey = (expr, ctx.node, ctx.pos, ctx.size,
                 tuple(sorted(self.engine.get_variables().items())))
         if ckey not in self._find_cache:
             tc = TraceCollector() if self.engine.should_trace else None
-            metadata = {'current_node': ctx.node}
+            metadata = {'current_node': ctx.node, 'engine': self.engine}
             result = self.engine.data_engine.evaluate(
                 expr, ctx.node, self.engine.get_variables(),
                 context_position=ctx.pos, context_size=ctx.size,
@@ -456,6 +468,66 @@ class ResultTreeFragment(XPathRootNode):
                 self._xml_ids.setdefault(node.xml_id, node)
 
 
+class HackyMinimalXSLTKey(object):
+    def __init__(self, engine, name):
+        self._find_cache = {}
+        self.engine = engine
+        self.name = name
+        self.pattern = engine._keys[name]['match']
+        self.value_expr = engine._keys[name]['use']
+
+    def __repr__(self):
+        return "<Key: match=%r use=%r>" % (self.pattern, self.value_expr)
+
+    def find_raw(self, expr, ctx):
+        ckey = (expr, ctx.node, ctx.pos, ctx.size,
+                tuple(sorted(self.engine.get_variables().items())))
+        if ckey not in self._find_cache:
+            tc = TraceCollector() if self.engine.should_trace else None
+            metadata = {'current_node': ctx.node}
+            result = self.engine.data_engine.evaluate(
+                expr, ctx.node, self.engine.get_variables(),
+                context_position=ctx.pos, context_size=ctx.size,
+                metadata=metadata, trace_collector=tc)
+            if tc is not None:
+                tc.dump_html()
+            self._find_cache[ckey] = result
+        return self._find_cache[ckey]
+
+    def find(self, expr, ctx):
+        return self.find_raw(expr, ctx).value
+
+    def match(self, ctx):
+        if not self.pattern:
+            return False
+
+        for node in self.find('ancestor-or-self::node()', ctx):
+            pnodes = self.find(self.pattern, ctx.copy(node=node))
+            if ctx.node in pnodes:
+                return True
+
+        return False
+
+    def apply(self, root_node, values):
+        matching_nodes = set()
+        all_nodes = self.find(
+            '//*', HackyTemplateContext('', root_node, 1, 1))
+        for node in all_nodes:
+            ctx = HackyTemplateContext('', node, 1, 1)
+            if self.match(ctx) and self.match_values(ctx, values):
+                matching_nodes.add(node)
+
+        return matching_nodes
+
+    def match_values(self, ctx, values):
+        node_values = self.find_raw(self.value_expr, ctx)
+        if node_values.object_type == 'node-set':
+            node_values = [node.string_value() for node in node_values.value]
+        else:
+            node_values = [node_values.coerce('string').value]
+        return set(values).intersection(node_values)
+
+
 class XSLTFunctionLibrary(FunctionLibrary):
 
     @xpath_function('object', 'node-set?', rtype='node-set')
@@ -464,7 +536,15 @@ class XSLTFunctionLibrary(FunctionLibrary):
 
     @xpath_function('string', 'object', rtype='node-set')
     def key(ctx, name, obj):
-        raise NotImplementedError()
+        # TODO: Expand qname?
+        key_processor = HackyMinimalXSLTKey(ctx.metadata['engine'], name.value)
+
+        if obj.object_type == 'node-set':
+            values = set(node.string_value() for node in obj.value)
+        else:
+            values = set([obj.coerce('string').value])
+
+        return XPathNodeSet(key_processor.apply(ctx.root_node, values))
 
     @xpath_function('number', 'string', 'string?', rtype='string')
     def format_number(ctx, num, formatstr, decimalstr):
