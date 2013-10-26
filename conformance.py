@@ -10,12 +10,13 @@ from minimal_xslt import HackyMinimalXSLTEngine
 
 STORED_DATA_FILE_TEMPL = 'test_data%s.json'
 
-SKIP_TESTS = (
-    # Very slow
+SLOW_TESTS = (
     'match_match12',
     'match_match13',
     'position_position09',
+    )
 
+SKIP_TESTS = (
     # Need XPath features
     # namespace axis
     'axes_axes62',
@@ -38,9 +39,6 @@ SKIP_TESTS = (
     # other
     'namespace_namespace25',  # redefined namespaces
     'output_output70',  # entity handling?
-
-    # Unexplained Failures
-    'predicate_predicate38',
 
     # Need XSLT features
     # import/include
@@ -119,7 +117,7 @@ class ConformanceTestCatalog(object):
     def _stored_data_file(self):
         return STORED_DATA_FILE_TEMPL % (self.catalog,)
 
-    def find_tests(self):
+    def find_tests(self, skip_slow=False):
         try:
             tests = json.load(open(self._stored_data_file()))
         except IOError:
@@ -128,6 +126,8 @@ class ConformanceTestCatalog(object):
 
         for test in tests:
             test = dict((str(k), v) for k, v in test.items())
+            if skip_slow and test['name'] in SLOW_TESTS:
+                continue
             if test['name'] not in SKIP_TESTS:
                 yield ConformanceTestCase(self.base_path, self.trace, **test)
 
@@ -227,13 +227,15 @@ if __name__ == '__main__':
                       help='stop on first failure')
     parser.add_option('--trace', action='store_true', dest='trace',
                       default=False, help='trace XPath execution flow')
+    parser.add_option('--skip-slow', action='store_true', dest='skip_slow',
+                      default=False, help='skip some slow tests')
 
     (opts, test_names) = parser.parse_args()
 
     test_catalog = ConformanceTestCatalog(opts.suite_path, trace=opts.trace)
     tests_to_run = []
 
-    for tc in test_catalog.find_tests():
+    for tc in test_catalog.find_tests(skip_slow=opts.skip_slow):
         if not test_names:
             # Special case. If no tests are specified, run them all.
             tests_to_run.append(tc)

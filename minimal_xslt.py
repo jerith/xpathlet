@@ -181,13 +181,13 @@ class HackyMinimalXSLTEngine(object):
         max_priority = max(t.priority for t in matches)
         matches = [t for t in matches if t.priority == max_priority]
 
-        # print ""
-        # print ctx.pos, ctx.node
-        # print matches
-        # print ""
-
         if len(matches) > 1:
-            sys.exit(1)
+            # This is an error, but we're allowed to recover by choosing the
+            # last template to appear in document-order.
+            print (
+                " *** WARNING: Multiple matching templates, recovering by"
+                " selecting the last one:"), repr(matches)
+            matches = matches[-1:]
 
         assert len(matches) == 1
         return matches[0]
