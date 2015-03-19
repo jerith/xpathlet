@@ -7,6 +7,8 @@ The only external dependency is [PLY][1], which is a pure Python lex/yacc
 implementation. (There is also a alternate parser which uses [parsley][2], but
 that's currently much slower and is therefore not the default.)
 
+xpathlet is covered by the MIT license. See the LICENSE file for details.
+
 Features
 --------
 
